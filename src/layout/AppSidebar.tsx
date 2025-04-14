@@ -85,11 +85,14 @@ const navItems: NavItem[] = [
         allowedEmploymentTypes: ["Part-Time"],
       },
       {
+        name: "Apprenticeship",
+        path: "/hours/apprenticeship-shifts",
+        allowedEmploymentTypes: ["Apprenticeship"],
+      },
+      {
         name: "Absent",
-        subItems: [
-          { name: "Overview", path: "/hours/absent/overview" },
-          { name: "Detailed View", path: "/hours/absent/detail" },
-        ],
+        path: "/hours/absent",
+        allowedEmploymentTypes: ["Regular", "Open-Shifts", "Part-Time", "Apprenticeship"],
       },
     ],
   },

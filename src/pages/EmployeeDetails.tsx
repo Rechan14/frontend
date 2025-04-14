@@ -56,7 +56,7 @@ const EmployeeDetails = () => {
           <div className="flex flex-col items-center mb-6">
             <img
               src={account.profile_image 
-                ? `http://localhost:4000/profile-uploads/${account.id}` 
+                ? `http://localhost:4000${account.profile_image}` 
                 : `https://ui-avatars.com/api/?name=${encodeURIComponent(account.firstName + " " + account.lastName)}`}
               alt="Profile"
               className="w-32 h-32 rounded-full object-cover border-4 border-gray-300 dark:border-gray-600 shadow-md mb-4"

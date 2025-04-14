@@ -23,11 +23,14 @@ import AddAccount from "./pages/AddAccount";
 import Payslip from "./pages/Payslip";
 import RegularShift from "./pages/RegularShift";
 import TodoOpenShifts from "./pages/TodoOpenShifts";
-import TodoRegularShifts from "./pages/ToDoRegularShifts"
+import TodoRegularShifts from "./pages/TodoRegularShifts"
 import TodoPartTimeShifts from "./pages/TodoPartTimeShifts"
+import TodoApprenticeshipShifts from "./pages/TodoApprenticeshipShifts"
 import AllShifts from "./pages/AllShifts";
 import EmployeeDetails from "./pages/EmployeeDetails";
 import PartTimeShifts from "./pages/PartTimeShifts";
+import ApprenticeshipShifts from "./pages/Apprenticeship";
+import Absent from "./pages/Absent";
 
 // import Hours from "./pages/Hours";
 
@@ -61,10 +64,13 @@ export default function App() {
                 <Route path="/utilities" element={<Calendar />} />
                 <Route path="/hours/open-shifts" element={<OpenShifts />} />
                 <Route path="/hours/part-time-shifts" element={<PartTimeShifts/>} />
+                <Route path="/hours/apprenticeship-shifts" element={<ApprenticeshipShifts/>} />
+                <Route path="/hours/absent" element={<Absent/>} />
                 <Route path="/timesheet" element={<Timesheet />} /> 
                 <Route path="/todo-open-shifts" element={<TodoOpenShifts />} />
                 <Route path="/todo-regular-shifts" element={<TodoRegularShifts />} />
                 <Route path="/todo-part-time-shifts" element={<TodoPartTimeShifts/>} />
+                <Route path="/todo-apprenticeship-shifts" element={<TodoApprenticeshipShifts/>} />
                 <Route path="/add-account" element={<AddAccount onAddAccount={() => {}} />} />
               </Route>
             </Route>

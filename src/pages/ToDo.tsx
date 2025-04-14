@@ -1,4 +1,4 @@
-import { List, Briefcase } from "lucide-react";  // Imported new icons
+import { List, Briefcase, Clock4Icon, AlarmClockCheck, ClockFading} from "lucide-react";  // Imported new icons
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -78,7 +78,7 @@ const ToDo: React.FC = () => {
             onClick={() => navigate("/todo-regular-shifts")}
             className="text-gray-800 dark:text-white/90 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-6"
           >
-            <Briefcase size={40} /> {/* Changed icon */}
+            <Clock4Icon size={40} /> {/* Changed icon */}
             <span className="text-lg">Regular Shift</span>
           </button>
 
@@ -86,8 +86,16 @@ const ToDo: React.FC = () => {
             onClick={() => navigate("/todo-part-time-shifts")}
             className="text-gray-800 dark:text-white/90 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-6"
           >
-            <Briefcase size={40} /> {/* Changed icon */}
+            <AlarmClockCheck size={40} /> {/* Changed icon */}
             <span className="text-lg">Part Time Shift</span>
+          </button>
+
+          <button
+            onClick={() => navigate("/todo-apprenticeship-shifts")}
+            className="text-gray-800 dark:text-white/90 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-6"
+          >
+            <ClockFading size={40} /> {/* Changed icon */}
+            <span className="text-lg">Apprenticeship</span>
           </button>
         </div>
       </div>
