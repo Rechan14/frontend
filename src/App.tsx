@@ -30,7 +30,7 @@ import AllShifts from "./pages/AllShifts";
 import EmployeeDetails from "./pages/EmployeeDetails";
 import PartTimeShifts from "./pages/PartTimeShifts";
 import ApprenticeshipShifts from "./pages/Apprenticeship";
-import Absent from "./pages/Absent";
+import AbsentTable from "./pages/AbsentTable";
 
 // import Hours from "./pages/Hours";
 
@@ -65,7 +65,7 @@ export default function App() {
                 <Route path="/hours/open-shifts" element={<OpenShifts />} />
                 <Route path="/hours/part-time-shifts" element={<PartTimeShifts/>} />
                 <Route path="/hours/apprenticeship-shifts" element={<ApprenticeshipShifts/>} />
-                <Route path="/hours/absent" element={<Absent/>} />
+                <Route path="/hours/absent-table" element={<AbsentTable/>} />
                 <Route path="/timesheet" element={<Timesheet />} /> 
                 <Route path="/todo-open-shifts" element={<TodoOpenShifts />} />
                 <Route path="/todo-regular-shifts" element={<TodoRegularShifts />} />

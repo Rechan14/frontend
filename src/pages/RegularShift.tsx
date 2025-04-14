@@ -262,6 +262,13 @@ export default function RegularShifts() {
     <>
     <PageBreadcrumb pageTitle="Home / Hours / Regular Shift Logs" />
       <div className="p-6  rounded-lg shadow-md border border-gray-100 dark:border-gray-800 text-sm text-gray-700 dark:text-gray-200">
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow text-sm">
+            + Add Log
+        </button>
+      </div>
         {loading && <p className="text-center text-gray-500">Loading shifts...</p>}
         {error && <p className="text-center text-red-500">{error}</p>}
 

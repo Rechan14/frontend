@@ -49,13 +49,13 @@ const navItems: NavItem[] = [
   },
   {
     icon: <GroupIcon />,
-    name: "WorkForce",
+    name: "Work Force",
     path: "/workforce",
     roles: ["Manager", "Admin"],
   },
   {
     icon: <PaperPlaneIcon />,
-    name: "Leaves",
+    name: "Leave",
     path: "/leaves",
     roles: ["Manager", "Admin", "User"],
   },
@@ -91,7 +91,7 @@ const navItems: NavItem[] = [
       },
       {
         name: "Absent",
-        path: "/hours/absent",
+        path: "/hours/absent-table",
         allowedEmploymentTypes: ["Regular", "Open-Shifts", "Part-Time", "Apprenticeship"],
       },
     ],
