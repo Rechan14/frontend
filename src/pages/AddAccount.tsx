@@ -35,13 +35,23 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      toast.error("Authentication token missing. Please log in.", {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
+      return;
+    }
 
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
       if (decoded.role) setUserRole(decoded.role);
     } catch (error) {
       console.error("Token decoding error:", error);
+      toast.error("Error decoding the token.", {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
     }
   }, []);
 
@@ -57,7 +67,13 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
         const countryNames = data.map((country: any) => country.name.common);
         setCountries(countryNames.sort());
       })
-      .catch((error) => console.error("Error fetching countries:", error));
+      .catch((error) => {
+        toast.error("Failed to load countries. Please try again later.", {
+          position: "bottom-right",
+          autoClose: 3000,
+        });
+        console.error("Error fetching countries:", error);
+      });
   }, []);
 
   useEffect(() => {
@@ -71,7 +87,13 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
       })
         .then((res) => res.json())
         .then((data) => setCities(data.data || []))
-        .catch((error) => console.error("Error fetching cities:", error));
+        .catch((error) => {
+          toast.error("Failed to load cities. Please try again later.", {
+            position: "bottom-right",
+            autoClose: 3000,
+          });
+          console.error("Error fetching cities:", error);
+        });
     }
   }, [newAccount.country]);
 
@@ -135,60 +157,75 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
 
   const handleAddAccount = async () => {
     if (!isFormValid()) return;
-
+  
     const token = localStorage.getItem("token");
     if (!token) {
-      console.error("No authentication token found!");
+      toast.error("No authentication token found!", {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
       return;
     }
-
-    if (!userRole) {
-      console.error("User role is undefined! Check token decoding.");
+  
+    if (!userRole || userRole !== "Admin") {
+      toast.error("Unauthorized: Only admins can create new accounts.", {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
       return;
     }
-
-    if (userRole !== "Admin") {
-      console.error("Unauthorized: Only admins can create new accounts.");
-      return;
-    }
-
+  
     try {
       setLoading(true);
       const headers = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
       };
-
+  
       const response = await fetch("http://localhost:4000/accounts", {
         method: "POST",
         headers,
         body: JSON.stringify(newAccount),
       });
-
+  
       if (!response.ok) {
         const errorMessage = await response.text();
+        
+        // Check if the error is about duplicate email
+        if (response.status === 400 && errorMessage.includes("email")) {
+          throw new Error("This email is already registered.");
+        }
+  
+        // Handle other errors
         throw new Error(`Failed to add account: ${response.status} - ${errorMessage}`);
       }
-
+  
       await response.json();
-      toast.success("Added Successfully", {
+      toast.success("Account added successfully!", {
         position: "bottom-right",
         autoClose: 2000,
       });
-
+  
       setTimeout(() => {
         window.location.href = "/workforce";
       }, 1000);
-    } catch (error) {
-      console.error("Error adding account:", error);
-      toast.error("Failed to add account. Please try again.", {
+    } catch (error: any) {
+      // Check for specific duplicate email error
+      const message = error.message === "This email is already registered."
+        ? "This email is already registered. Please use a different email."
+        : error.message || "Failed to add account. Please try again.";
+  
+      toast.error(message, {
         position: "bottom-right",
         autoClose: 3000,
       });
+  
+      console.error("Error adding account:", message);
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <>
@@ -235,24 +272,18 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
                   onChange={handleInputChange}
                 />
               )}
-              {errors[name] && <p className="text-red-500 text-sm mt-1">{errors[name]}</p>}
+              {errors[name] && <p className="text-red-500 text-xs">{errors[name]}</p>}
             </div>
           ))}
         </div>
-
-        <div className="flex justify-end space-x-6 mt-6">
-          <button onClick={() => window.history.back()} className="px-6 py-3 bg-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition duration-200">
-            Cancel
-          </button>
-          <button
-            onClick={handleAddAccount}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition duration-200"
-            disabled={loading}
-          >
-            {loading ? <span className="loader"></span> : "Add Account"}
-          </button>
-        </div>
-        <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar theme="dark" />
+        <button
+          onClick={handleAddAccount}
+          disabled={loading}
+          className="mt-8 py-3 px-6 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          {loading ? "Adding Account..." : "Add Account"}
+        </button>
+        <ToastContainer />
       </div>
     </>
   );
