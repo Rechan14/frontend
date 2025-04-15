@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import PageBreadcrumb from "../components/common/PageBreadCrumb";
 
 interface Account {
   id: number;
@@ -70,68 +71,128 @@ const EmployeeDetails = () => {
   if (error) return <p className="text-center text-red-500">{error}</p>;
 
   return (
-    <div className="p-6 rounded-lg shadow-md border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-      {account && (
-        <>
-          {/* Profile Section */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="relative w-32 h-32 mb-4 cursor-pointer">
-              <img
-                src={
-                  profileImage ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(account.firstName + " " + account.lastName)}`
-                }
-                alt="Profile"
-                className="w-full h-full rounded-full object-cover border-4 border-gray-300 dark:border-gray-600 shadow-md transition-transform duration-300 ease-in-out transform hover:scale-250"
-                onError={(e) => {
-                  e.currentTarget.src = "/images/default-profile.png";
-                }}
-              />
-            </div>
+    <>
+    <PageBreadcrumb pageTitle="Home / Work Force / Employee Details" />
+      <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
+        <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
+              {/* Profile Image */}
+              <div className="relative w-35 h-35 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800 hover:scale-110 transition-transform duration-300 ease-in-out">
+                <img
+                  src={
+                    profileImage ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(account?.firstName?.charAt(0) || "U")}&background=random&color=fff`
+                  }
+                  alt="User"
+                  onError={(e) => { e.currentTarget.src = "/images/default-profile.png"; }}
+                  className="object-cover w-full h-full"
+                />
+              </div>
 
-            <h3 className="text-2xl font-semibold text-gray-800 dark:text-gray-200">
-              {account.firstName} {account.middleName} {account.lastName}
-            </h3>
-            <p className="text-lg text-gray-600 dark:text-gray-400">
-              {account.role} - {account.department}
-            </p>
-          </div>
-
-          {/* Info Section */}
-          <div className="space-y-3 text-base text-gray-700 dark:text-gray-300">
-            <div className="flex justify-between">
-              <p>
-                <strong>Title:</strong> {account.title} {account.firstName} {account.lastName}
-              </p>
-              <p>
-                <strong>Employment Type:</strong> {account.employmentType}
-              </p>
-            </div>
-            <div className="flex justify-between">
-              <p>
-                <strong>Email:</strong> {account.email}
-              </p>
-              <p>
-                <strong>Phone:</strong> {account.phone}
-              </p>
-            </div>
-            <div className="flex justify-between">
-              <p>
-                <strong>Country:</strong> {account.country}
-              </p>
-              <p>
-                <strong>City/State:</strong> {account.city}
-              </p>
-            </div>
-            <div className="flex justify-between">
-              <p>
-                <strong>Postal Code:</strong> {account.postalCode}
-              </p>
+              {/* User Details */}
+              <div className="order-3 xl:order-2">
+                <h4 className="mb-2 text-2xl font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
+                  {account?.title || ""} {account?.firstName || "User"} {account?.lastName || ""}
+                </h4>
+                <div className="flex flex-col items-center gap-1 text-center xl:flex-row xl:gap-3 xl:text-left">
+                  <p className="text-base text-gray-500 dark:text-gray-400">{account?.role || "N/A"}</p>
+                </div>
+              </div>
             </div>
           </div>
-        </>
-      )}
-    </div>
+        </div>
+
+        {/* Personal Information */}
+        <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6 mt-7">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
+                Personal Information
+              </h4>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">First Name</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.firstName || "User"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Last Name</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.lastName || "User"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Email address</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.email || "User"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Phone</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.phone || "N/A"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Role</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.role || "N/A"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Employment Type</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.employmentType || "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* User Address */}
+        <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6 mt-7">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
+                User Address
+              </h4>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Country</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.country || "N/A"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">City/State</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.city || "N/A"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Postal Code</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    {account?.postalCode || "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 
