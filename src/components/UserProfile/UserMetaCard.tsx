@@ -1,25 +1,24 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Modal } from "../ui/modal"; // Importing the Modal component
+import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
-import { toast } from "react-toastify"; // Optional: Add toast for feedback
+import { toast } from "react-toastify";
+import axios from "axios";
 
 export default function UserMetaCard() {
   const { user } = useAuth();
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Change Password Modal state
   const [isPasswordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordFormData, setPasswordFormData] = useState({
-    oldPassword: "",
     password: "",
     confirmPassword: "",
   });
 
-  const [loading, setLoading] = useState(false); // Loading state for password change
+  const [loading, setLoading] = useState(false);
 
   // Fetch profile image
   useEffect(() => {
@@ -40,7 +39,6 @@ export default function UserMetaCard() {
     if (user?.id) fetchProfileImage();
   }, [user?.id]);
 
-  // Handle profile image upload
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) {
@@ -73,7 +71,6 @@ export default function UserMetaCard() {
     }
   };
 
-  // Handle input changes for the password form
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setPasswordFormData((prev) => ({
@@ -82,75 +79,82 @@ export default function UserMetaCard() {
     }));
   };
 
-  // Handle password reset
   const handleResetPassword = async () => {
     const { password, confirmPassword } = passwordFormData;
   
+    // Check if both fields are filled
     if (!password || !confirmPassword) {
-      toast.error("All password fields are required.");
+      toast.error("All fields are required.");
       return;
     }
   
+    // Ensure passwords match
     if (password !== confirmPassword) {
-      toast.error("New password and confirm password do not match.");
+      toast.error("Passwords do not match!");
       return;
     }
   
     setLoading(true);
   
-    // Check if the token exists in localStorage before proceeding
+    // Get token and user ID
     const token = localStorage.getItem("token");
-    if (!token) {
-      toast.error("Unauthorized: No token found");
+    if (!token || !user?.id) {
+      toast.error("Unauthorized: Missing token or user ID");
       setLoading(false);
       return;
     }
   
     try {
-      const response = await fetch("http://localhost:4000/accounts/reset-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Ensure the token is being sent in headers
-        },
-        body: JSON.stringify({
-          token, // Add token back to the request body
-          password,
-          confirmPassword,
-        }),
-      });
+      // Prepare the request data, now including both 'password' and 'confirmPassword'
+      const requestData = { password, confirmPassword };
   
-      const data = await response.json();
-      if (response.ok) {
-        toast.success("Password changed successfully!");
-        setTimeout(() => setPasswordModalOpen(false), 1500);
+      console.log("Request data:", requestData); // Debugging: log the data being sent
+  
+      const response = await axios.put(
+        `http://localhost:4000/accounts/${user.id}`,
+        requestData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,  // Send token for authorization
+          },
+        }
+      );
+  
+      console.log("Backend response:", response); // Debugging: log the backend response
+  
+      if (response.status === 200) {
+        toast.success("Password updated successfully!");
+        setPasswordModalOpen(false);  // Close modal after success
+        setPasswordFormData({ password: "", confirmPassword: "" });  // Reset form data
       } else {
-        console.error("Server error:", data); // Log the full response for debugging
-        toast.error(data.message || "Failed to change password.");
+        toast.error("Password update failed, please try again.");
       }
-    } catch (error) {
-      console.error("Network error:", error); // Catch network errors
-      toast.error("Failed to change password.");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const message = err.response?.data?.message || err.message;
+        toast.error(`Error: ${message}`);
+        console.log("Axios Error Response:", err.response?.data);  // Debugging
+      } else if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error("An error occurred while updating your password.");
+      }
     } finally {
       setLoading(false);
     }
   };
   
-  // Open the password change modal
-  const openModal = () => {
-    setPasswordModalOpen(true);
-  };
-
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
-          {/* Profile Image with Upload Option */}
           <div className="relative w-35 h-35 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
             <img
               src={profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.firstName?.charAt(0) || "U")}&background=random&color=fff`}
               alt="User"
-              onError={(e) => { e.currentTarget.src = "/images/default-profile.png"; }}
+              onError={(e) => {
+                e.currentTarget.src = "/images/default-profile.png";
+              }}
               className="object-cover w-full h-full"
             />
             <label
@@ -170,7 +174,6 @@ export default function UserMetaCard() {
             </label>
           </div>
 
-          {/* User Details */}
           <div className="order-3 xl:order-2">
             <h4 className="mb-2 text-2xl font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
               {user?.title || ""} {user?.firstName || "User"} {user?.lastName || ""}
@@ -181,9 +184,8 @@ export default function UserMetaCard() {
           </div>
         </div>
 
-        {/* Button to open Change Password Modal */}
         <button
-          onClick={openModal}
+          onClick={() => setPasswordModalOpen(true)}
           className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] lg:inline-flex lg:w-auto"
         >
           <svg className="fill-current" width="18" height="18" viewBox="0 0 18 18">
@@ -197,7 +199,6 @@ export default function UserMetaCard() {
         </button>
       </div>
 
-      {/* Change Password Modal */}
       <Modal isOpen={isPasswordModalOpen} onClose={() => setPasswordModalOpen(false)} className="max-w-md m-4">
         <div className="relative w-full p-4 bg-white rounded-3xl dark:bg-gray-900 lg:p-11">
           <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">Change Password</h4>
@@ -209,16 +210,6 @@ export default function UserMetaCard() {
             }}
           >
             <div className="grid grid-cols-1 gap-5">
-              <div>
-                <Label>Old Password</Label>
-                <Input
-                  type="password"
-                  name="oldPassword"
-                  value={passwordFormData.oldPassword}
-                  onChange={handlePasswordChange}
-                />
-              </div>
-
               <div>
                 <Label>New Password</Label>
                 <Input

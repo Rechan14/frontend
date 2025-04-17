@@ -36,23 +36,30 @@ const Timesheet: React.FC = () => {
           limit: itemsPerPage,
         },
       });
-
+  
       // Log the raw API response to check its structure
       console.log("Raw API Response:", response.data);
-
+  
       // Assuming response.data is an array of timesheet entries
       const formattedData = response.data.map((entry: any) => {
         const user = entry.account
           ? { firstName: entry.account.firstName, lastName: entry.account.lastName }
           : { firstName: "Unknown", lastName: "" };
-
-        const timeMatch = entry.details?.match(/Time In - (.*?), Time Out - (.*)/);
-        const timeIn = timeMatch ? timeMatch[1] : null;
-        const timeOut = timeMatch ? timeMatch[2] : null;
-
+  
+        // Parse the details field (JSON string) into an object
+        let timeIn = null;
+        let timeOut = null;
+        try {
+          const details = JSON.parse(entry.details); // Parse the JSON string
+          timeIn = details.timeIn || null;
+          timeOut = details.timeOut || null;
+        } catch (error) {
+          console.error("Error parsing details:", error);
+        }
+  
         const timeInImage = entry.timeInImage || null;
         const timeOutImage = entry.timeOutImage || null;
-
+  
         return {
           id: entry.id,
           user,
@@ -60,13 +67,14 @@ const Timesheet: React.FC = () => {
           status: entry.status || "N/A",
         };
       });
-
+  
       // Update state with formatted data
       setTimesheetData(formattedData);
     } catch (error) {
       console.error("Error fetching timesheet data:", error);
     }
   };
+  
 
   const handleApprove = async (id: number) => {
     setLoadingId(id);

@@ -72,6 +72,7 @@ export default function App() {
                 <Route path="/todo-part-time-shifts" element={<TodoPartTimeShifts/>} />
                 <Route path="/todo-apprenticeship-shifts" element={<TodoApprenticeshipShifts/>} />
                 <Route path="/add-account" element={<AddAccount onAddAccount={() => {}} />} />
+                
               </Route>
             </Route>
 

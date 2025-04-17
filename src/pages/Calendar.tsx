@@ -3,7 +3,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { EventInput, DateSelectArg, EventClickArg } from "@fullcalendar/core";
+import { EventInput, DateSelectArg, EventClickArg, EventContentArg  } from "@fullcalendar/core";
 import { Modal } from "../components/ui/modal";
 import { useModal } from "../hooks/useModal";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -14,6 +14,14 @@ interface CalendarEvent extends EventInput {
   };
 }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  eventColor: string;
+}
+
 const Calendar: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventTitle, setEventTitle] = useState("");
@@ -22,6 +30,7 @@ const Calendar: React.FC = () => {
   const [eventLevel, setEventLevel] = useState("");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const calendarRef = useRef<FullCalendar>(null);
   const { isOpen, openModal, closeModal } = useModal();
 
@@ -51,17 +60,18 @@ const Calendar: React.FC = () => {
         let eventsToSet: CalendarEvent[] = [];
 
         if (data.length > 0) {
-          eventsToSet = data.map((event: any) => ({
+          eventsToSet = data.map((event: CalendarEvent) => ({
             id: event.id,
             title: event.title,
             start: event.startDate,
             end: event.endDate,
+            allDay: true,
             extendedProps: {
               calendar: event.eventColor,
             },
           }));
         }
-
+        
         setEvents(eventsToSet);
       } catch (error) {
         console.error("Error fetching events:", error);
@@ -94,33 +104,26 @@ const Calendar: React.FC = () => {
       console.error("No token found. Cannot add or update event.");
       return;
     }
-  
-    if (!eventStartDate || !eventEndDate) {
-      console.error("Event start and end dates are required.");
+
+    if (!eventTitle.trim() || !eventLevel.trim() || !eventStartDate || !eventEndDate) {
+      setError("All fields are required.");
       return;
     }
-  
+
     const startDate = new Date(eventStartDate).toISOString().split("T")[0];
     const endDate = new Date(eventEndDate).toISOString().split("T")[0];
-  
-    const eventColorMap: { [key: string]: string } = {
-      Danger: "red",
-      Success: "green",
-      Primary: "blue",
-      Warning: "yellow",
-    };
-    const eventColor = eventColorMap[eventLevel] || "gray";
-  
+
     const eventData = {
       title: eventTitle,
       startDate: startDate,
       endDate: endDate,
-      eventColor: eventColor || null,
+      eventColor: eventLevel,
     };
-  
+
+    setLoading(true);
     try {
       let response;
-  
+
       if (selectedEvent) {
         response = await fetch(`http://localhost:4000/calendars/${selectedEvent.id}`, {
           method: "PUT",
@@ -140,25 +143,26 @@ const Calendar: React.FC = () => {
           body: JSON.stringify(eventData),
         });
       }
-  
+
       if (!response.ok) {
         const errorMessage = await response.text();
         console.error("Error adding/updating event:", errorMessage);
         setError(errorMessage);
+        setLoading(false);
         return;
       }
-  
-      // Reload the page after adding/updating event
-      window.location.reload(); // Add this line to reload the page
-  
+
+      window.location.reload();
       closeModal();
       resetModalFields();
     } catch (error) {
       console.error("Error adding/updating event:", error);
       setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
-  
+
   const resetModalFields = () => {
     setEventTitle("");
     setEventStartDate("");
@@ -196,11 +200,7 @@ const Calendar: React.FC = () => {
           />
         </div>
 
-        <Modal
-          isOpen={isOpen}
-          onClose={closeModal}
-          className="max-w-[700px] p-6 lg:p-10"
-        >
+        <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] p-6 lg:p-10">
           <div className="flex flex-col px-2 overflow-y-auto custom-scrollbar">
             <div>
               <h5 className="mb-2 font-semibold text-gray-800 modal-title text-theme-xl dark:text-white/90 lg:text-2xl">
@@ -249,8 +249,47 @@ const Calendar: React.FC = () => {
                   className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90"
                 />
               </div>
-            </div>
 
+              <div className="mt-6">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Event Level
+                </label>
+                <div className="flex flex-wrap items-center gap-4 sm:gap-5">
+                  {Object.entries({
+                    Danger: "bg-red-500",
+                    Success: "bg-green-500",
+                    Primary: "bg-blue-500",
+                    Warning: "bg-yellow-500",
+                  }).map(([key, color]) => (
+                    <label
+                      key={key}
+                      htmlFor={`modal${key}`}
+                      className="flex items-center cursor-pointer text-sm text-gray-700 dark:text-gray-300"
+                    >
+                      <span className="relative">
+                        <input
+                          className="sr-only"
+                          type="radio"
+                          name="event-level"
+                          value={key}
+                          id={`modal${key}`}
+                          checked={eventLevel === key}
+                          onChange={() => setEventLevel(key)}
+                        />
+                        <span className="flex items-center justify-center w-5 h-5 mr-2 border border-gray-300 rounded-full dark:border-gray-700">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              eventLevel === key ? `${color}` : "hidden"
+                            }`}
+                          />
+                        </span>
+                      </span>
+                      {key}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="flex items-center gap-3 mt-6 modal-footer sm:justify-end">
               <button
                 onClick={closeModal}
@@ -261,10 +300,13 @@ const Calendar: React.FC = () => {
               </button>
               <button
                 onClick={handleAddOrUpdateEvent}
+                disabled={loading}
                 type="button"
-                className="btn btn-success btn-update-event flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto"
+                className={`btn btn-success flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto ${
+                  loading ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               >
-                {selectedEvent ? "Update Changes" : "Add Event"}
+                {loading ? "Saving..." : selectedEvent ? "Update Changes" : "Add Event"}
               </button>
             </div>
           </div>
@@ -274,7 +316,7 @@ const Calendar: React.FC = () => {
   );
 };
 
-const renderEventContent = (eventInfo: any) => {
+const renderEventContent = (eventInfo: EventContentArg) => {
   const colorMap: { [key: string]: string } = {
     Danger: "bg-red-500",
     Success: "bg-green-500",

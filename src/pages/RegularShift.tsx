@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface Shift {
   id: number;
@@ -116,8 +117,22 @@ export default function RegularShifts() {
           ? data // Admin can see all shifts
           : data.filter((shift) => shift.userId === user.id); // Regular users see only their own shifts
   
+        // Fetch action logs for status update
+        const actionLogsResponse = await fetch("http://localhost:4000/action-logs");
+        const actionLogsData: ActionLog[] = await actionLogsResponse.json();
+  
+        // Update status based on action logs
+        const updatedShifts = filteredShifts.map((shift) => {
+          const actionLog = actionLogsData.find((log) => log.shiftId === shift.id);
+          if (actionLog) {
+            // If there's an action log, set the status to 'pending' or 'approved' based on the log's status
+            return { ...shift, status: actionLog.status };
+          }
+          return { ...shift, status: "" }; // Default to blank if no action log
+        });
+  
         // Sort the shifts by timeIn
-        const sortedShifts = filteredShifts.sort((a, b) => {
+        const sortedShifts = updatedShifts.sort((a, b) => {
           if (a.timeIn && b.timeIn) {
             return new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime(); // Sort by timeIn descending
           }
@@ -138,7 +153,6 @@ export default function RegularShifts() {
     }
   }, [userId]);
   
-
   useEffect(() => {
     const fetchActionLogs = async () => {
       try {
@@ -179,7 +193,7 @@ export default function RegularShifts() {
           userId: selectedShift.userId,
           timeIn: formattedTimeIn,
           timeOut: formattedTimeOut,
-          status: "pending",
+          status: "pending", // Status will be set here
         }),
       });
   
@@ -190,39 +204,15 @@ export default function RegularShifts() {
   
       console.log("Action Log Submitted:", actionLogData); // Debug log
   
-      // Update the shift status to pending after successful submission
-      setShifts((prev) =>
-        prev.map((shift) =>
-          shift.id === selectedShift.id ? { ...shift, status: "pending" } : shift
-        )
-      );
-  
-      console.log("Updated Shifts:", shifts); // Debug the updated shifts state
-  
-      // Fetch updated shifts from the backend
-      const response = await fetch("http://localhost:4000/attendances");
-      if (!response.ok) throw new Error("Failed to fetch updated attendance records");
-  
-      const data: Shift[] = await response.json();
-  
-      // Sort and filter shifts again (similar to your initial useEffect)
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        const isAdmin = user.role === "admin";
-  
-        const filteredShifts = isAdmin
-          ? data
-          : data.filter((shift) => shift.userId === user.id);
-  
-        const sortedShifts = filteredShifts.sort((a, b) => {
-          if (a.timeIn && b.timeIn) {
-            return new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime();
-          }
-          return a.timeIn ? -1 : 1;
-        });
-  
-        setShifts(sortedShifts); // Update the state with the latest shifts
+      // Only update the shift status if it's not already pending
+      if (selectedShift.status !== "pending") {
+        setShifts((prevShifts) =>
+          prevShifts.map((shift) =>
+            shift.id === selectedShift.id
+              ? { ...shift, status: "pending" } // Update the specific shift's status
+              : shift
+          )
+        );
       }
   
       toast.success("Shift update request submitted!", {
@@ -231,10 +221,14 @@ export default function RegularShifts() {
       });
   
       setSelectedShift(null); // Reset the selected shift
-    } catch (error) {
-      console.error("Error creating action log:", error);
-      toast.error("Something went wrong. Please try again.");
-    }
+    } catch (error: any) {
+      if (error?.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else {
+        console.error("Error creating action log:", error);
+        toast.error("Something went wrong. Please try again.");
+      }
+    }    
   };
   
   const getUserFullName = (userId: number) => {
@@ -327,11 +321,14 @@ export default function RegularShifts() {
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold capitalize">{displayStatus}</td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">
                         <button
-                          className="text-blue-600 hover:underline mr-2"
-                          onClick={() => setSelectedShift(shift)}
+                          className="text-blue-600 hover:underline"
+                          onClick={() => {
+                            setSelectedShift(shift);
+                            setIsModalOpen(true);
+                          }}
                         >
                           Edit
-                        </button>
+                      </button>
                       </td>
                     </tr>
                   );
