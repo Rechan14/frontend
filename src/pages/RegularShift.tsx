@@ -56,7 +56,7 @@ export default function RegularShifts() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(7);
+  const [itemsPerPage] = useState(10);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -79,8 +79,6 @@ export default function RegularShifts() {
     }
   }, []);
   
-
-
   useEffect(() => {
     const fetchUsers = async () => {
       try {

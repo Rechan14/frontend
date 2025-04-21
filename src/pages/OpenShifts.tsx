@@ -39,19 +39,6 @@ export default function OpenShifts() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
-  const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
-  const [modalImage, setModalImage] = useState<string | null>(null); // State for modal image
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // State for modal visibility
-
-  const handleImageClick = (imageUrl: string) => {
-    setModalImage(imageUrl);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setModalImage(null);
-  };
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -128,8 +115,8 @@ export default function OpenShifts() {
       try {
         const response = await fetch("http://localhost:4000/action-logs");
         if (!response.ok) throw new Error("Failed to fetch action logs");
-        const data: ActionLog[] = await response.json();
-        setActionLogs(data);
+        // const data: ActionLog[] = await response.json();
+        // setActionLogs(data);
       } catch (error) {
         console.error("Error fetching action logs:", error);
       }
@@ -216,12 +203,12 @@ export default function OpenShifts() {
     <PageBreadcrumb pageTitle="Home / Hours / Open Shift Logs" />
       <div className="p-6  rounded-lg shadow-md border border-gray-100 dark:border-gray-800 text-sm text-gray-700 dark:text-gray-200">
       <div className="flex justify-between items-center mb-4">
-        <button
+        {/* <button
           onClick={() => setIsModalOpen(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow text-sm"
         >
           + Add Log
-        </button>
+        </button> */}
       </div>
         {loading && <p className="text-center text-gray-500">Loading shifts...</p>}
         {error && <p className="text-center text-red-500">{error}</p>}

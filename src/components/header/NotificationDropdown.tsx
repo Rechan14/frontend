@@ -12,10 +12,10 @@ interface Event {
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifying, setNotifying] = useState(true);
+  const [notifying, setNotifying] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch events with authorization header (if required)
   const fetchEvents = async () => {
     try {
       const token = localStorage.getItem("authToken");
@@ -25,13 +25,19 @@ export default function NotificationDropdown() {
         },
       });
 
-      const allEvents = res.data;
-
-      // Save all events
+      const allEvents: Event[] = res.data;
       setEvents(allEvents);
 
-      // Trigger notification if naa’y events
-      if (allEvents.length > 0) setNotifying(true);
+      const lastSeenEventId = parseInt(localStorage.getItem("lastSeenEventId") || "0", 10);
+      const newEvents = allEvents.filter((event) => event.id > lastSeenEventId);
+
+      if (newEvents.length > 0) {
+        setUnreadCount(newEvents.length);
+        setNotifying(true);
+      } else {
+        setUnreadCount(0);
+        setNotifying(false);
+      }
     } catch (error) {
       console.error("Failed to fetch events", error);
     }
@@ -42,16 +48,23 @@ export default function NotificationDropdown() {
   }, []);
 
   const toggleDropdown = () => setIsOpen(!isOpen);
+
   const closeDropdown = () => setIsOpen(false);
+
   const handleClick = () => {
     toggleDropdown();
     setNotifying(false);
+    setUnreadCount(0);
+
+    if (events.length > 0) {
+      const latestEventId = events[events.length - 1].id;
+      localStorage.setItem("lastSeenEventId", latestEventId.toString());
+    }
   };
 
-  // Helper function to format date to a readable string
   const formatDate = (date: string) => {
     const newDate = new Date(date);
-    return newDate.toLocaleDateString(); // You can adjust the format as needed
+    return newDate.toLocaleDateString();
   };
 
   return (
@@ -60,13 +73,11 @@ export default function NotificationDropdown() {
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full dropdown-toggle hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         onClick={handleClick}
       >
-        <span
-          className={`absolute right-0 top-0.5 z-10 h-2 w-2 rounded-full bg-orange-400 ${
-            !notifying ? "hidden" : "flex"
-          }`}
-        >
-          <span className="absolute inline-flex w-full h-full bg-orange-400 rounded-full opacity-75 animate-ping"></span>
-        </span>
+        {notifying && unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-5 w-5 rounded-full bg-orange-500 text-white text-xs font-bold shadow-md">
+            {unreadCount}
+          </span>
+        )}
         <svg
           className="fill-current"
           width="20"
@@ -132,7 +143,9 @@ export default function NotificationDropdown() {
                     </span>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       Event date: {formatDate(event.startDate)}
-                      {isLatest && <span className="ml-1 text-xs text-orange-500 font-semibold">New</span>}
+                      {isLatest && (
+                        <span className="ml-1 text-xs text-orange-500 font-semibold">New</span>
+                      )}
                     </span>
                   </DropdownItem>
                 </li>

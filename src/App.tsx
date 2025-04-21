@@ -58,7 +58,7 @@ export default function App() {
                 <Route path="/hours/all-shifts" element={<AllShifts/>} />
                 <Route path="/workforce" element={<Workforce />} />
                 <Route path="/employee-details/:id" element={<EmployeeDetails />} />
-                <Route path="/leaves" element={<Leave />} />
+                <Route path="/leaves" element={<Leave leaveTypes={[]} leaveHistory={[]}/>} />
                 <Route path="/paycheck/payslip" element={<Payslip/>} />
                 <Route path="/shifts" element={<Calendar />} />
                 <Route path="/utilities" element={<Calendar />} />
