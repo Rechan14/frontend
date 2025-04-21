@@ -3,6 +3,7 @@ import { ToastContainer, toast } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import 'react-datepicker/dist/react-datepicker.css';
+import DatePicker from "react-datepicker";
 
 interface Shift {
   id: number;
@@ -41,18 +42,10 @@ export default function RegularShifts() {
   const [error, setError] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
-  const [modalImage, setModalImage] = useState<string | null>(null); // State for modal image
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // State for modal visibility
-
-  const handleImageClick = (imageUrl: string) => {
-    setModalImage(imageUrl);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setModalImage(null);
-  };
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // set for modal visibility
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null); // Date picker state
+  const [newShiftTimeIn, setNewShiftTimeIn] = useState<string>(''); // Time in state for new shift
+  const [newShiftTimeOut, setNewShiftTimeOut] = useState<string>(''); // Time out state for new shift
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -164,6 +157,43 @@ export default function RegularShifts() {
     };
     fetchActionLogs();
   }, []);
+
+  const handleAddLog = async () => {
+    if (!selectedDate || !newShiftTimeIn || !newShiftTimeOut) {
+      toast.error("Please fill all fields.");
+      return;
+    }
+
+    try {
+      const actionLogResponse = await fetch("http://localhost:4000/action-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId,  // Assuming you're using the current user ID
+          shiftId: 0, // No shiftId since it's a new entry
+          timeIn: `${selectedDate.toISOString().split('T')[0]}T${newShiftTimeIn}`,
+          timeOut: `${selectedDate.toISOString().split('T')[0]}T${newShiftTimeOut}`,
+          status: "pending",
+        }),
+      });
+
+      const actionLogData = await actionLogResponse.json();
+      if (!actionLogResponse.ok) {
+        throw new Error(actionLogData.message || "Failed to create action log");
+      }
+
+      toast.success("Shift log added successfully!", {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
+
+      setIsModalOpen(false); // Close the modal after submission
+
+    } catch (error: any) {
+      toast.error("Something went wrong. Please try again.");
+      console.error("Error adding action log:", error);
+    }
+  };
 
   const formatTime = (datetime: string) => {
     const date = new Date(datetime);
@@ -286,7 +316,6 @@ export default function RegularShifts() {
                     console.log('Time Out Image ID:', shift.timeOutImageId);  // Log Time Out Image ID
                   const pendingStatus = localStorage.getItem(`shift_${shift.id}_status`);
                   const displayStatus = shift.status === "approved" ? "approved" : pendingStatus || shift.status;
-
                   return (
                     <tr key={shift.id} className="hover:bg-gray-100 dark:hover:bg-gray-900">
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserFullName(shift.userId)}</td>
@@ -407,6 +436,62 @@ export default function RegularShifts() {
             </div>
           </div>
         )}
+
+      {/* Modal for adding shift log */}
+      {isModalOpen && (
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg w-full max-w-md">
+                <h2 className="text-xl font-semibold mb-4">Add Shift Log</h2>
+                <div className="mb-4">
+                  <label htmlFor="date" className="block text-sm font-semibold">Date</label>
+                  <DatePicker
+                    selected={selectedDate} // Siguraduhon nga selectedDate sakto ang value
+                    onChange={(date) => setSelectedDate(date)} // Update selectedDate kung mag-usab
+                    dateFormat="yyyy-MM-dd" // Gamiton ang paborito nga format
+                    className="border rounded p-2" // Styling gamit ang Tailwind CSS
+                  />
+                </div>
+                <div className="mb-4">
+                  <label htmlFor="timeIn" className="block text-sm font-semibold">Time In</label>
+                  <input
+                    type="time"
+                    id="timeIn"
+                    value={newShiftTimeIn}
+                    onChange={(e) => setNewShiftTimeIn(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label htmlFor="timeOut" className="block text-sm font-semibold">Time Out</label>
+                  <input
+                    type="time"
+                    id="timeOut"
+                    value={newShiftTimeOut}
+                    onChange={(e) => setNewShiftTimeOut(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleAddLog}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow text-sm"
+                  >
+                    Save Log
+                  </button>
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}    
 
         <ToastContainer />
       </div>

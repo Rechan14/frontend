@@ -267,7 +267,6 @@ export default function ApprenticeshipShifts() {
                 currentShifts.map((shift) => {
                   const pendingStatus = localStorage.getItem(`shift_${shift.id}_status`);
                   const displayStatus = shift.status === "approved" ? "approved" : pendingStatus || shift.status;
-
                   return (
                     <tr key={shift.id} className="hover:bg-gray-100 dark:hover:bg-gray-900">
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserFullName(shift.userId)}</td>
