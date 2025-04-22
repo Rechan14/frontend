@@ -187,7 +187,7 @@ export default function RegularShifts() {
         autoClose: 3000,
       });
 
-      setIsModalOpen(false); // Close the modal after submission
+      setIsModalOpen(false); 
 
     } catch (error: any) {
       toast.error("Something went wrong. Please try again.");

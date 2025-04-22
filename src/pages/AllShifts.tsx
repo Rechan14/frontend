@@ -44,19 +44,9 @@ export default function AllShifts() {
   const [modalImage, setModalImage] = useState<string | null>(null); // State for modal image
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // State for modal visibility
 
-  const handleImageClick = (imageUrl: string) => {
-    setModalImage(imageUrl);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setModalImage(null);
-  };
-
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(7);
+  const [itemsPerPage] = useState(10);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -84,21 +74,24 @@ export default function AllShifts() {
   useEffect(() => {
     const fetchAttendance = async () => {
       if (userRole !== "Admin") return; // Ensure only Admin can fetch attendance
-
+  
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("http://localhost:4000/attendances");
+  
+        const response = await fetch(
+          `http://localhost:4000/attendances?page=${currentPage}&limit=${itemsPerPage}`
+        );
         if (!response.ok) throw new Error("Failed to fetch attendance records");
         const data: Shift[] = await response.json();
-        const sortedShifts = data
-          .sort((a, b) => {
-            if (a.timeIn && b.timeIn) {
-              return new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime(); // Sort by timeIn descending
-            }
-            return a.timeIn ? -1 : 1; // If timeIn is null, treat as older
-          });
-
+  
+        const sortedShifts = data.sort((a, b) => {
+          if (a.timeIn && b.timeIn) {
+            return new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime();
+          }
+          return a.timeIn ? -1 : 1;
+        });
+  
         setShifts(sortedShifts);
       } catch (error) {
         setError("Error fetching attendance records.");
@@ -107,11 +100,11 @@ export default function AllShifts() {
         setLoading(false);
       }
     };
-
+  
     if (userRole === "Admin" && userId !== null) {
       fetchAttendance();
     }
-  }, [userId, userRole]);
+  }, [userId, userRole, currentPage, itemsPerPage]); // Include itemsPerPage for when it changes
   
   useEffect(() => {
     const fetchActionLogs = async () => {
@@ -343,19 +336,6 @@ export default function AllShifts() {
                 Cancel
               </button>
             </div>
-          </div>
-        )}
-        {/* Image Modal */}
-        {isModalOpen && modalImage && (
-          <div
-            className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-70 z-50 flex items-center justify-center"
-            onClick={closeModal}
-          >
-            <img
-              src={modalImage}
-              alt="Time-in/Time-out"
-              className="max-w-full max-h-full object-contain"
-            />
           </div>
         )}
       </div>
