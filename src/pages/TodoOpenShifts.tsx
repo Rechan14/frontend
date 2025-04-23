@@ -12,8 +12,8 @@ interface Shift {
   totalHours: string | null;
   shifts: string;
   status: string;
-  imageId: string | null; // Added for time-in image
-  timeOutImageId: string | null; // Added for time-out image
+  imageId: string | null;
+  timeOutImageId: string | null;
 }
 
 interface User {
@@ -23,26 +23,15 @@ interface User {
   employmentType?: string;
 }
 
-interface ActionLog {
-  id: number;
-  shiftId: number;
-  userId: number;
-  timeIn: string;
-  timeOut: string;
-  status: string;
-}
-
 export default function OpenShifts() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [userId, setUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
-  const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
 
-  const [modalImage, setModalImage] = useState<string | null>(null); // State for modal image
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // State for modal visibility
+  const [modalImage, setModalImage] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const handleImageClick = (imageUrl: string) => {
     setModalImage(imageUrl);
@@ -57,6 +46,36 @@ export default function OpenShifts() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(7);
+
+  const fetchAttendance = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch("http://localhost:4000/attendances");
+      if (!response.ok) throw new Error("Failed to fetch attendance records");
+      const data: Shift[] = await response.json();
+
+      // Fetch only shifts where the associated user's employmentType is 'Open-Shifts'
+      const filteredShifts = data
+        .filter((shift) => {
+          const user = users.find((user) => user.id === shift.userId);
+          return user?.employmentType === "Open-Shifts";
+        })
+        .sort((a, b) => {
+          if (a.timeIn && b.timeIn) {
+            return new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime();
+          }
+          return a.timeIn ? -1 : 1;
+        });
+
+      setShifts(filteredShifts);
+    } catch (error) {
+      setError("Error fetching attendance records.");
+      console.error("Error fetching attendance:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -81,54 +100,10 @@ export default function OpenShifts() {
   }, []);
 
   useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch("http://localhost:4000/attendances");
-        if (!response.ok) throw new Error("Failed to fetch attendance records");
-        const data: Shift[] = await response.json();
-
-        // Fetch only shifts where the associated user's employmentType is 'Open-Shifts'
-        const filteredShifts = data
-          .filter((shift) => {
-            const user = users.find((user) => user.id === shift.userId);
-            return user?.employmentType === "Open-Shifts"; // Filter based on employmentType
-          })
-          .sort((a, b) => {
-            if (a.timeIn && b.timeIn) {
-              return new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime(); // Sort by timeIn descending
-            }
-            return a.timeIn ? -1 : 1; // If timeIn is null, treat as older
-          });
-
-        setShifts(filteredShifts);
-      } catch (error) {
-        setError("Error fetching attendance records.");
-        console.error("Error fetching attendance:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (userId !== null) {
       fetchAttendance();
     }
-  }, [userId, users]); // Re-fetch when users or userId change
-
-  useEffect(() => {
-    const fetchActionLogs = async () => {
-      try {
-        const response = await fetch("http://localhost:4000/action-logs");
-        if (!response.ok) throw new Error("Failed to fetch action logs");
-        const data: ActionLog[] = await response.json();
-        setActionLogs(data);
-      } catch (error) {
-        console.error("Error fetching action logs:", error);
-      }
-    };
-    fetchActionLogs();
-  }, []);
+  }, [userId, users]);
 
   const formatTime = (datetime: string) => {
     const date = new Date(datetime);
@@ -140,47 +115,26 @@ export default function OpenShifts() {
     return `${hours}:${minutes} ${ampm}`;
   };
 
-  const handleUpdateShift = async () => {
-    if (!selectedShift || !selectedShift.id) return;
-
-    try {
-      const shiftDate = selectedShift.date;
-      const formattedTimeIn = `${shiftDate}T${selectedShift.timeIn}`;
-      const formattedTimeOut = `${shiftDate}T${selectedShift.timeOut}`;
-
-      const actionLogResponse = await fetch("http://localhost:4000/action-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shiftId: selectedShift.id,
-          userId: selectedShift.userId,
-          timeIn: formattedTimeIn,
-          timeOut: formattedTimeOut,
-          status: "pending",
-        }),
-      });
-
-      const actionLogData = await actionLogResponse.json();
-      if (!actionLogResponse.ok) {
-        throw new Error(actionLogData.message || "Failed to create action log");
-      }
-
-      toast.success("Shift update request submitted!", {
-        position: "bottom-right",
-        autoClose: 3000,
-      });
-
-      setShifts((prev) =>
-        prev.map((shift) =>
-          shift.id === selectedShift.id ? { ...shift, status: "pending" } : shift
-        )
-      );
-
-      setSelectedShift(null);
-    } catch (error) {
-      console.error("Error creating action log:", error);
-      toast.error("Something went wrong. Please try again.");
+  const calculateTotalHours = (timeIn: string | null, timeOut: string | null) => {
+    if (!timeIn || !timeOut) return null;
+    
+    const start = new Date(timeIn);
+    const end = new Date(timeOut);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    
+    if (end < start) {
+      const nextDayEnd = new Date(end);
+      nextDayEnd.setDate(nextDayEnd.getDate() + 1);
+      const diffInMs = nextDayEnd.getTime() - start.getTime();
+      const diffInHours = diffInMs / (1000 * 60 * 60);
+      return diffInHours;
     }
+    
+    const diffInMs = end.getTime() - start.getTime();
+    const diffInHours = diffInMs / (1000 * 60 * 60);
+    
+    return diffInHours;
   };
 
   const getUserFullName = (userId: number) => {
@@ -237,7 +191,7 @@ export default function OpenShifts() {
                             src={`http://localhost:4000/uploads/${shift.imageId}`}
                             alt="Time In"
                             className="absolute inset-0 w-20 h-20 object-cover opacity-0 group-hover:opacity-100 group-hover:scale-125 transition-all duration-300 ease-in-out"
-                            style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} // Centers the image
+                            style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
                           />
                         )}
                       </td>
@@ -249,11 +203,17 @@ export default function OpenShifts() {
                             src={`http://localhost:4000/uploads/${shift.timeOutImageId}`}
                             alt="Time Out"
                             className="absolute inset-0 w-20 h-20 object-cover opacity-0 group-hover:opacity-100 group-hover:scale-125 transition-all duration-300 ease-in-out"
-                            style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} // Centers the image
+                            style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
                           />
                         )}
                       </td>
-                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{shift.totalHours ? Number(shift.totalHours).toFixed(2) : "-"}</td>
+                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">
+                        {(() => {
+                          if (!shift.timeIn || !shift.timeOut) return "-";
+                          const totalHours = calculateTotalHours(shift.timeIn, shift.timeOut);
+                          return totalHours ? totalHours.toFixed(2) : "-";
+                        })()}
+                      </td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserEmploymentType(shift.userId)}</td>
                     </tr>
                   );
