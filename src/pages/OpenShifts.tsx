@@ -229,6 +229,30 @@ export default function OpenShifts() {
     return user ? user.employmentType ?? "Not Available" : "Not Available";
   };
 
+  const calculateTotalHours = (timeIn: string | null, timeOut: string | null) => {
+    if (!timeIn || !timeOut) return null;
+    
+    const start = new Date(timeIn);
+    const end = new Date(timeOut);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    
+    // If end time is earlier than start time, it means it's the next day
+    if (end < start) {
+      // Add 24 hours to the end time to account for the next day
+      const nextDayEnd = new Date(end);
+      nextDayEnd.setDate(nextDayEnd.getDate() + 1);
+      const diffInMs = nextDayEnd.getTime() - start.getTime();
+      const diffInHours = diffInMs / (1000 * 60 * 60);
+      return diffInHours;
+    }
+    
+    const diffInMs = end.getTime() - start.getTime();
+    const diffInHours = diffInMs / (1000 * 60 * 60);
+    
+    return diffInHours;
+  };
+
   // Pagination Logic
   const indexOfLastShift = currentPage * itemsPerPage;
   const indexOfFirstShift = indexOfLastShift - itemsPerPage;
@@ -305,7 +329,9 @@ export default function OpenShifts() {
                           />
                         )}
                       </td>
-                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{shift.totalHours ? Number(shift.totalHours).toFixed(2) : "-"}</td>
+                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">
+                        {shift.timeIn && shift.timeOut ? calculateTotalHours(shift.timeIn, shift.timeOut)?.toFixed(2) : "-"}
+                      </td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserEmploymentType(shift.userId)}</td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold capitalize">{displayStatus}</td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">
