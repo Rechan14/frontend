@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { ToastContainer, toast } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 
@@ -23,15 +22,6 @@ interface User {
   employmentType?: string;
 }
 
-interface ActionLog {
-  id: number;
-  shiftId: number;
-  userId: number;
-  timeIn: string;
-  timeOut: string;
-  status: string;
-}
-
 export default function AllShifts() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -39,10 +29,6 @@ export default function AllShifts() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
-  const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
-  const [modalImage, setModalImage] = useState<string | null>(null); // State for modal image
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // State for modal visibility
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -106,20 +92,6 @@ export default function AllShifts() {
     }
   }, [userId, userRole, currentPage, itemsPerPage]); // Include itemsPerPage for when it changes
   
-  useEffect(() => {
-    const fetchActionLogs = async () => {
-      try {
-        const response = await fetch("http://localhost:4000/action-logs");
-        if (!response.ok) throw new Error("Failed to fetch action logs");
-        const data: ActionLog[] = await response.json();
-        setActionLogs(data);
-      } catch (error) {
-        console.error("Error fetching action logs:", error);
-      }
-    };
-    fetchActionLogs();
-  }, []);
-
   const formatTime = (datetime: string) => {
     const date = new Date(datetime);
     if (isNaN(date.getTime())) return "12:00 AM";
@@ -128,49 +100,6 @@ export default function AllShifts() {
     const ampm = hours >= 12 ? "PM" : "AM";
     hours = hours % 12 || 12;
     return `${hours}:${minutes} ${ampm}`;
-  };
-
-  const handleUpdateShift = async () => {
-    if (!selectedShift || !selectedShift.id) return;
-
-    try {
-      const shiftDate = selectedShift.date;
-      const formattedTimeIn = `${shiftDate}T${selectedShift.timeIn}`;
-      const formattedTimeOut = `${shiftDate}T${selectedShift.timeOut}`;
-
-      const actionLogResponse = await fetch("http://localhost:4000/action-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shiftId: selectedShift.id,
-          userId: selectedShift.userId,
-          timeIn: formattedTimeIn,
-          timeOut: formattedTimeOut,
-          status: "pending",
-        }),
-      });
-
-      const actionLogData = await actionLogResponse.json();
-      if (!actionLogResponse.ok) {
-        throw new Error(actionLogData.message || "Failed to create action log");
-      }
-
-      toast.success("Shift update request submitted!", {
-        position: "bottom-right",
-        autoClose: 3000,
-      });
-
-      setShifts((prev) =>
-        prev.map((shift) =>
-          shift.id === selectedShift.id ? { ...shift, status: "pending" } : shift
-        )
-      );
-
-      setSelectedShift(null);
-    } catch (error) {
-      console.error("Error creating action log:", error);
-      toast.error("Something went wrong. Please try again.");
-    }
   };
 
   const getUserFullName = (userId: number) => {
@@ -211,16 +140,11 @@ export default function AllShifts() {
                 <th className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold">Time Out</th>
                 <th className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold">Total Hours</th>
                 <th className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold">Shifts</th>
-                <th className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold">Status</th>
-                <th className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-gray-700 dark:text-gray-300">
               {currentShifts.length > 0 ? (
                 currentShifts.map((shift) => {
-                  const pendingStatus = localStorage.getItem(`shift_${shift.id}_status`);
-                  const displayStatus = shift.status === "approved" ? "approved" : pendingStatus || shift.status;
-
                   return (
                     <tr key={shift.id} className="hover:bg-gray-100 dark:hover:bg-gray-900">
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserFullName(shift.userId)}</td>
@@ -250,15 +174,6 @@ export default function AllShifts() {
                       </td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{shift.totalHours ? Number(shift.totalHours).toFixed(2) : "-"}</td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserEmploymentType(shift.userId)}</td>
-                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm"></td>
-                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">
-                        <button
-                          className="text-blue-600 hover:underline mr-2"
-                          onClick={() => setSelectedShift(shift)}
-                        >
-                          Edit
-                        </button>
-                      </td>
                     </tr>
                   );
                 })
@@ -293,53 +208,7 @@ export default function AllShifts() {
             Next
           </button>
         </div>
-
-        {/* Shift Edit Modal */}
-        {selectedShift && (
-          <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg max-w-sm w-full text-sm">
-              <h3 className="text-lg font-semibold mb-4">Edit Shift</h3>
-              <label className="block mb-2">
-                Time In:
-                <input
-                  type="time"
-                  className="w-full border p-2 mt-1 text-sm"
-                  value={selectedShift.timeIn || ""}
-                  onChange={(e) =>
-                    setSelectedShift({ ...selectedShift, timeIn: e.target.value })
-                  }
-                />
-              </label>
-              <label className="block mb-2">
-                Time Out:
-                <input
-                  type="time"
-                  className="w-full border p-2 mt-1 text-sm"
-                  value={selectedShift.timeOut || ""}
-                  onChange={(e) =>
-                    setSelectedShift({ ...selectedShift, timeOut: e.target.value })
-                  }
-                />
-              </label>
-
-              <button
-                className="bg-blue-500 text-white px-4 py-2 rounded mt-4 w-full"
-                onClick={handleUpdateShift}
-              >
-                Update Shift
-              </button>
-
-              <button
-                className="bg-gray-500 text-white px-4 py-2 rounded mt-4 w-full"
-                onClick={() => setSelectedShift(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
-      <ToastContainer />
     </>
   );
 }

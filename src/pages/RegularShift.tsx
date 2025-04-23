@@ -43,6 +43,7 @@ export default function RegularShifts() {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // set for modal visibility
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null); // Date picker state
   const [newShiftTimeIn, setNewShiftTimeIn] = useState<string>(''); // Time in state for new shift
   const [newShiftTimeOut, setNewShiftTimeOut] = useState<string>(''); // Time out state for new shift
@@ -249,6 +250,9 @@ export default function RegularShifts() {
       });
   
       setSelectedShift(null); // Reset the selected shift
+      setIsEditModalOpen(false); // <-- Mao ni ang crucial
+      setIsModalOpen(false);
+      
     } catch (error: any) {
       if (error?.response?.data?.error) {
         toast.error(error.response.data.error);
@@ -351,7 +355,7 @@ export default function RegularShifts() {
                           className="text-blue-600 hover:underline"
                           onClick={() => {
                             setSelectedShift(shift);
-                            setIsModalOpen(true);
+                            setIsEditModalOpen(true);
                           }}
                         >
                           Edit
@@ -393,7 +397,7 @@ export default function RegularShifts() {
         </div>
 
         {/* Shift Edit Modal */}
-        {selectedShift && (
+        {isEditModalOpen && selectedShift && (
           <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 flex items-center justify-center">
             <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg max-w-sm w-full text-sm">
               <h3 className="text-lg font-semibold mb-4">Edit Shift</h3>
@@ -492,7 +496,6 @@ export default function RegularShifts() {
             </div>
           </div>
         )}    
-
         <ToastContainer />
       </div>
     </>
