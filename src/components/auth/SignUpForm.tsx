@@ -6,6 +6,7 @@ import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
 import { signUp } from "../../api";
 import Select from "react-select";
+import { Spinner } from "../../components/Spinner";
 
 export default function SignUpForm() {
   const [step, setStep] = useState(1);
@@ -34,12 +35,26 @@ export default function SignUpForm() {
   const [countries, setCountries] = useState<{ label: string; value: string }[]>([]);
   const [cities, setCities] = useState<{ label: string; value: string }[]>([]);
 
+  const [passwordStrength, setPasswordStrength] = useState<{
+    score: number;
+    message: string;
+  }>({ score: 0, message: "" });
+
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+
+  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [apiError, setApiError] = useState("");
+
   const navigate = useNavigate();
 
   const capitalizeFirstLetter = (name: string) =>
     name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 
   useEffect(() => {
+    setLoadingCountries(true);
+    setApiError("");
     fetch("https://restcountries.com/v3.1/all")
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch countries");
@@ -56,45 +71,118 @@ export default function SignUpForm() {
       })
       .catch((error) => {
         console.error("Error fetching countries:", error);
-        setError("Failed to load countries. Please try again later.");
+        setApiError("Failed to load countries. Please try again later.");
+      })
+      .finally(() => {
+        setLoadingCountries(false);
       });
   }, []);
   
   useEffect(() => {
     if (country) {
+      setLoadingCities(true);
+      setApiError("");
       fetch("https://countriesnow.space/api/v0.1/countries/cities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ country }),
       })
-        .then((res) => res.json())
-        .then(
-          (data: {
-            error: boolean;
-            msg: string;
-            data: string[];
-          }) => {
-            const cityOptions = (data.data || []).map((city) => ({
-              label: city,
-              value: city,
-            }));
-            setCities(
-              cityOptions.sort((a, b) => a.label.localeCompare(b.label))
-            );
-          }
-        )
-        .catch((error) => console.error("Error fetching cities:", error));
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch cities");
+          return res.json();
+        })
+        .then((data: { error: boolean; msg: string; data: string[] }) => {
+          if (data.error) throw new Error(data.msg);
+          const cityOptions = (data.data || []).map((city) => ({
+            label: city,
+            value: city,
+          }));
+          setCities(
+            cityOptions.sort((a, b) => a.label.localeCompare(b.label))
+          );
+        })
+        .catch((error) => {
+          console.error("Error fetching cities:", error);
+          setApiError("Failed to load cities. Please try again later.");
+        })
+        .finally(() => {
+          setLoadingCities(false);
+        });
     }
   }, [country]);  
 
+  const validatePasswordStrength = (password: string) => {
+    let score = 0;
+    let message = "";
+
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    switch (score) {
+      case 0:
+        message = "Very Weak";
+        break;
+      case 1:
+        message = "Weak";
+        break;
+      case 2:
+        message = "Medium";
+        break;
+      case 3:
+        message = "Strong";
+        break;
+      case 4:
+        message = "Very Strong";
+        break;
+    }
+
+    setPasswordStrength({ score, message });
+  };
+
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-    setPasswordError(confirmPassword && e.target.value !== confirmPassword ? "Passwords do not match" : "");
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    validatePasswordStrength(newPassword);
+    setPasswordError(confirmPassword && newPassword !== confirmPassword ? "Passwords do not match" : "");
   };
 
   const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setConfirmPassword(e.target.value);
     setPasswordError(password && e.target.value !== password ? "Passwords do not match" : "");
+  };
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailError("Please enter a valid email address");
+      return false;
+    }
+    setEmailError("");
+    return true;
+  };
+
+  const validatePhone = (phone: string) => {
+    const phoneRegex = /^\+?[\d\s-]{10,}$/;
+    if (!phoneRegex.test(phone)) {
+      setPhoneError("Please enter a valid phone number");
+      return false;
+    }
+    setPhoneError("");
+    return true;
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    validateEmail(newEmail);
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPhone = e.target.value;
+    setPhone(newPhone);
+    validatePhone(newPhone);
   };
 
   const handleNext = (event: React.FormEvent) => {
@@ -104,6 +192,9 @@ export default function SignUpForm() {
     if (step === 1) {
       if (!firstName || !lastName || !department || !employmentType || !email || !phone || !password || !confirmPassword) {
         setError("All fields are required");
+        return;
+      }
+      if (!validateEmail(email) || !validatePhone(phone)) {
         return;
       }
       if (password !== confirmPassword) {
@@ -144,13 +235,15 @@ export default function SignUpForm() {
         acceptTerms,
       });
       navigate(`/verify-email?email=${encodeURIComponent(email)}`);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Signup failed");
-        }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Signup failed");
       }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -221,11 +314,23 @@ export default function SignUpForm() {
                   </div>
                   <div>
                     <Label>Email<span className="text-error-500">*</span></Label>
-                    <Input type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Input 
+                      type="email" 
+                      placeholder="Enter your email" 
+                      value={email} 
+                      onChange={handleEmailChange} 
+                    />
+                    {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
                   </div>
                   <div>
                     <Label>Phone<span className="text-error-500">*</span></Label>
-                    <Input type="tel" placeholder="Enter your phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <Input 
+                      type="tel" 
+                      placeholder="Enter your phone" 
+                      value={phone} 
+                      onChange={handlePhoneChange} 
+                    />
+                    {phoneError && <p className="text-red-500 text-sm mt-1">{phoneError}</p>}
                   </div>
                   <div>
                     <Label>Password<span className="text-error-500">*</span></Label>
@@ -234,6 +339,27 @@ export default function SignUpForm() {
                       <span onClick={() => setShowPassword(!showPassword)} className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2">
                         {showPassword ? <EyeIcon className="fill-gray-500 dark:fill-gray-400 size-5" /> : <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400 size-5" />}
                       </span>
+                    </div>
+                  </div>
+                  <div className="mt-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${
+                            passwordStrength.score === 0
+                              ? "bg-red-500"
+                              : passwordStrength.score === 1
+                              ? "bg-orange-500"
+                              : passwordStrength.score === 2
+                              ? "bg-yellow-500"
+                              : passwordStrength.score === 3
+                              ? "bg-blue-500"
+                              : "bg-green-500"
+                          }`}
+                          style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500">{passwordStrength.message}</span>
                     </div>
                   </div>
                   <div>
@@ -262,9 +388,12 @@ export default function SignUpForm() {
                           setCountry(selected?.value || "");
                           setCity(""); // reset city when changing country
                         }}
-                        placeholder="Select your country"
+                        placeholder={loadingCountries ? "Loading countries..." : "Select your country"}
+                        isLoading={loadingCountries}
+                        isDisabled={loadingCountries}
                         className="text-sm"
                       />
+                      {apiError && <p className="text-red-500 text-sm mt-1">{apiError}</p>}
                     </div>
                     {country && (
                       <div>
@@ -273,7 +402,9 @@ export default function SignUpForm() {
                           options={cities}
                           value={cities.find((c) => c.value === city)}
                           onChange={(selected) => setCity(selected?.value || "")}
-                          placeholder="Select your city"
+                          placeholder={loadingCities ? "Loading cities..." : "Select your city"}
+                          isLoading={loadingCities}
+                          isDisabled={loadingCities}
                           className="text-sm"
                         />
                       </div>
@@ -293,8 +424,21 @@ export default function SignUpForm() {
                   <button type="button" onClick={() => setStep(1)} className="w-full bg-gray-500 text-white rounded-lg py-3">
                     Back
                   </button>
-                  <button type="submit" className="w-full bg-brand-500 text-white rounded-lg py-3">
-                    {loading ? "Signing Up..." : "Sign Up"}
+                  <button 
+                    type="submit" 
+                    className={`w-full bg-brand-500 text-white rounded-lg py-3 flex items-center justify-center gap-2 ${
+                      loading ? "opacity-75 cursor-not-allowed" : ""
+                    }`}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Spinner className="w-5 h-5" />
+                        <span>Signing Up...</span>
+                      </>
+                    ) : (
+                      "Sign Up"
+                    )}
                   </button>
                 </>
               )}

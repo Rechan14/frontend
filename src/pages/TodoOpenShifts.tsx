@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { ToastContainer, toast } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 
@@ -29,19 +28,6 @@ export default function OpenShifts() {
   const [userId, setUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [modalImage, setModalImage] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-
-  const handleImageClick = (imageUrl: string) => {
-    setModalImage(imageUrl);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setModalImage(null);
-  };
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -249,8 +235,6 @@ export default function OpenShifts() {
             Next
           </button>
         </div>
-
-        <ToastContainer />
       </div>
     </>
   );

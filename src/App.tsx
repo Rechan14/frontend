@@ -31,7 +31,6 @@ import EmployeeDetails from "./pages/EmployeeDetails";
 import PartTimeShifts from "./pages/PartTimeShifts";
 import ApprenticeshipShifts from "./pages/Apprenticeship";
 import AbsentTable from "./pages/AbsentTable";
-
 // import Hours from "./pages/Hours";
 
 <ToastContainer /> 

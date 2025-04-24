@@ -107,16 +107,48 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
     let errorMessage = "";
 
     if (!value.trim()) {
-      errorMessage = "This field is required";
+      const fieldNames: { [key: string]: string } = {
+        title: "Title",
+        firstName: "First Name",
+        lastName: "Last Name",
+        phone: "Phone Number",
+        role: "Role",
+        department: "Department",
+        employmentType: "Employment Type",
+        email: "Email",
+        password: "Password",
+        confirmPassword: "Confirm Password",
+        country: "Country",
+        city: "City",
+        postalCode: "Postal Code"
+      };
+      
+      errorMessage = `${fieldNames[name]} is required`;
+      toast.error(errorMessage, {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
     } else {
       if (name === "email" && !/^\S+@\S+\.\S+$/.test(value)) {
         errorMessage = "Invalid email format";
+        toast.error(errorMessage, {
+          position: "bottom-right",
+          autoClose: 3000,
+        });
       }
       if (name === "password" && value.length < 6) {
         errorMessage = "Password must be at least 6 characters";
+        toast.error(errorMessage, {
+          position: "bottom-right",
+          autoClose: 3000,
+        });
       }
       if (name === "confirmPassword" && value !== newAccount.password) {
         errorMessage = "Passwords do not match";
+        toast.error(errorMessage, {
+          position: "bottom-right",
+          autoClose: 3000,
+        });
       }
     }
 
@@ -139,20 +171,46 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
       "postalCode",
     ];
     const newErrors: { [key: string]: string } = {};
+    let isValid = true;
 
     requiredFields.forEach((field) => {
       if (!newAccount[field as keyof typeof newAccount].trim()) {
-        newErrors[field] = "This field is required";
+        const fieldNames: { [key: string]: string } = {
+          title: "Title",
+          firstName: "First Name",
+          lastName: "Last Name",
+          phone: "Phone Number",
+          role: "Role",
+          department: "Department",
+          employmentType: "Employment Type",
+          email: "Email",
+          password: "Password",
+          confirmPassword: "Confirm Password",
+          country: "Country",
+          city: "City",
+          postalCode: "Postal Code"
+        };
+        
+        newErrors[field] = `${fieldNames[field]} is required`;
+        toast.error(`${fieldNames[field]} is required`, {
+          position: "bottom-right",
+          autoClose: 3000,
+        });
+        isValid = false;
       }
     });
 
     if (newAccount.password !== newAccount.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
+      toast.error("Passwords do not match", {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
+      isValid = false;
     }
 
     setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
+    return isValid;
   };
 
   const handleAddAccount = async () => {
