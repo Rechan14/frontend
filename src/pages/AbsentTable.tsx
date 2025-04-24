@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { useAuth } from "../context/AuthContext";
@@ -9,7 +9,6 @@ interface User {
   firstName: string;
   lastName: string;
   employmentType: string;
-  absentDates: string[];
 }
 
 interface Attendance {
@@ -20,108 +19,133 @@ interface Attendance {
   timeOut: string | null;
 }
 
+interface AbsenceRecord {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  employmentType: string;
+  date: string;
+}
+
+interface ApiError {
+  message: string;
+  status?: number;
+}
+
 const AbsentTable: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [date, setDate] = useState(dayjs().subtract(1, 'day').format("YYYY-MM-DD"));
+  const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ApiError | null>(null);
   const { user: authUser, token } = useAuth();
   const [retryCount, setRetryCount] = useState(0);
+  const [filter, setFilter] = useState<string>('');
 
-  const fetchAbsentData = async () => {
+  const fetchData = async () => {
     if (!token) {
-      setError("Please log in to view absent records");
+      setError({ message: "Please log in to view absent records" });
       return;
     }
 
     try {
       setLoading(true);
-      setError("");
-      console.log("Starting to fetch absents for date:", date);
+      setError(null);
       
-      // Fetch both users and attendance records with authentication
       const [usersResponse, attendanceResponse] = await Promise.all([
         axios.get('http://localhost:4000/accounts', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          headers: { Authorization: `Bearer ${token}` }
         }),
         axios.get('http://localhost:4000/attendances', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          headers: { Authorization: `Bearer ${token}` }
         })
       ]);
 
-      const allUsers: User[] = usersResponse.data;
+      const users: User[] = usersResponse.data;
       const attendances: Attendance[] = attendanceResponse.data;
 
-      // Process each user to find their absent dates
-      const usersWithAbsences = allUsers.map(user => {
-        // Get dates when user was present
-        const presentDates = new Set(
-          attendances
-            .filter(attendance => 
-              attendance.userId === user.id && 
-              attendance.timeIn &&
-              attendance.date === date // Only check for selected date
-            )
-            .map(attendance => new Date(attendance.date).toISOString().split('T')[0])
-        );
+      // Get all dates from attendance records
+      const allDates = [...new Set(attendances.map(a => a.date))].sort();
 
-        // If user has no attendance record for the selected date, they are absent
-        const isAbsent = !presentDates.has(date);
+      // Create absence records
+      const absenceRecords: AbsenceRecord[] = [];
+      
+      users.forEach(user => {
+        allDates.forEach(date => {
+          const hasAttendance = attendances.some(
+            a => a.userId === user.id && 
+            a.date === date && 
+            a.timeIn
+          );
 
-        return {
-          ...user,
-          absentDates: isAbsent ? [date] : []
-        };
+          if (!hasAttendance) {
+            absenceRecords.push({
+              userId: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              employmentType: user.employmentType,
+              date: date
+            });
+          }
+        });
       });
 
-      // Filter to only show users who are absent on the selected date
-      const usersWithAbsencesOnly = usersWithAbsences.filter(user => user.absentDates.length > 0);
-
-      console.log("Users with absences:", usersWithAbsencesOnly);
-      setUsers(usersWithAbsencesOnly);
-      setRetryCount(0); // Reset retry count on success
-    } catch (err: any) {
-      console.error("Error fetching absents:", err);
+      // Sort by date (most recent first)
+      absenceRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
-      // Handle specific error cases
+      setAbsences(absenceRecords);
+      setRetryCount(0);
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      
       if (err.response?.status === 401) {
-        setError("Session expired. Please log in again.");
+        setError({ message: "Session expired. Please log in again.", status: 401 });
       } else if (err.response?.status === 404) {
-        setError("No data found for the selected date.");
+        setError({ message: "No data found.", status: 404 });
       } else if (retryCount < 3) {
-        // Retry up to 3 times
         setRetryCount(prev => prev + 1);
-        setTimeout(fetchAbsentData, 2000); // Retry after 2 seconds
+        setTimeout(fetchData, 2000);
       } else {
-        setError(`Failed to fetch absent records: ${err.message}`);
+        setError({ message: `Failed to fetch records: ${err.message}` });
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRetry = () => {
+    setRetryCount(0);
+    fetchData();
+  };
+
+  const filteredAbsences = React.useMemo(() => {
+    if (!filter) return absences;
+    
+    return absences.filter(absence => 
+      absence.firstName.toLowerCase().includes(filter.toLowerCase()) ||
+      absence.lastName.toLowerCase().includes(filter.toLowerCase()) ||
+      absence.employmentType.toLowerCase().includes(filter.toLowerCase()) ||
+      dayjs(absence.date).format('MMM D, YYYY').toLowerCase().includes(filter.toLowerCase())
+    );
+  }, [absences, filter]);
+
   useEffect(() => {
     if (token) {
-      fetchAbsentData();
+      fetchData();
     }
-  }, [date, token]);
+  }, [token]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <PageBreadcrumb pageTitle="Home / Hours / Absent Table" />
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-          <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Absent Employees</h2>
-            <div className="mt-4 sm:mt-0">
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Absence Records</h2>
+            <div className="flex flex-col sm:flex-row gap-4">
               <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                type="text"
+                placeholder="Search by name, type, or date..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
                 className="border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-700 dark:text-gray-300 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -129,47 +153,60 @@ const AbsentTable: React.FC = () => {
 
           {error && (
             <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
-              {error}
-              {retryCount > 0 && (
-                <p className="mt-2 text-sm">Retrying... ({retryCount}/3)</p>
-              )}
+              <div className="flex justify-between items-center">
+                <p>{error.message}</p>
+                {retryCount > 0 && (
+                  <button
+                    onClick={handleRetry}
+                    className="ml-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                  >
+                    Retry ({retryCount}/3)
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
           {loading ? (
             <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
             </div>
-          ) : users.length === 0 ? (
+          ) : filteredAbsences.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 py-8">
               <span className="text-5xl">🎉</span>
-              <p className="mt-2">No absences found for {dayjs(date).format("MMM D, YYYY")}!</p>
+              <p className="mt-2">No absence records found!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gray-100 dark:bg-gray-700">
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Full Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Employment Type</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
+                      Employee
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
+                      Employment Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
+                      Date of Absence
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => (
+                  {filteredAbsences.map((absence) => (
                     <tr
-                      key={user.id}
+                      key={`${absence.userId}-${absence.date}`}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
-                        {`${user.firstName} ${user.lastName}`}
+                        {`${absence.firstName} ${absence.lastName}`}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
-                        {user.employmentType}
+                        {absence.employmentType}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
                         <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">
-                          {dayjs(date).format("MMM D, YYYY")}
+                          {dayjs(absence.date).format("MMM D, YYYY")}
                         </span>
                       </td>
                     </tr>

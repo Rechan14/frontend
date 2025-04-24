@@ -8,6 +8,7 @@ interface Event {
   title: string;
   startDate: string;
   endDate: string;
+  level: 'high' | 'medium' | 'low';
 }
 
 export default function NotificationDropdown() {
@@ -15,6 +16,7 @@ export default function NotificationDropdown() {
   const [notifying, setNotifying] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [filterLevel, setFilterLevel] = useState<'all' | 'high' | 'medium' | 'low'>('all');
 
   const fetchEvents = async () => {
     try {
@@ -25,7 +27,10 @@ export default function NotificationDropdown() {
         },
       });
 
-      const allEvents: Event[] = res.data;
+      const allEvents: Event[] = res.data.map((event: any) => ({
+        ...event,
+        level: event.eventColor // Map eventColor to level
+      }));
       setEvents(allEvents);
 
       const lastSeenEventId = parseInt(localStorage.getItem("lastSeenEventId") || "0", 10);
@@ -44,7 +49,14 @@ export default function NotificationDropdown() {
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchEvents();
+
+    // Set up polling every 30 seconds
+    const intervalId = setInterval(fetchEvents, 30000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   const toggleDropdown = () => setIsOpen(!isOpen);
@@ -66,6 +78,23 @@ export default function NotificationDropdown() {
     const newDate = new Date(date);
     return newDate.toLocaleDateString();
   };
+
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case 'high':
+        return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+      case 'low':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
+  };
+
+  const filteredEvents = events.filter(event => 
+    filterLevel === 'all' || event.level === filterLevel
+  );
 
   return (
     <div className="relative">
@@ -124,11 +153,54 @@ export default function NotificationDropdown() {
           </button>
         </div>
 
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setFilterLevel('all')}
+            className={`px-3 py-1 text-sm rounded-full ${
+              filterLevel === 'all' 
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilterLevel('high')}
+            className={`px-3 py-1 text-sm rounded-full ${
+              filterLevel === 'high' 
+                ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            High
+          </button>
+          <button
+            onClick={() => setFilterLevel('medium')}
+            className={`px-3 py-1 text-sm rounded-full ${
+              filterLevel === 'medium' 
+                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            Medium
+          </button>
+          <button
+            onClick={() => setFilterLevel('low')}
+            className={`px-3 py-1 text-sm rounded-full ${
+              filterLevel === 'low' 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            Low
+          </button>
+        </div>
+
         <ul className="flex flex-col h-auto overflow-y-auto custom-scrollbar">
-          {events.length === 0 ? (
+          {filteredEvents.length === 0 ? (
             <p className="text-center text-gray-500 dark:text-gray-400">No Notification</p>
           ) : (
-            [...events].reverse().map((event, index) => {
+            [...filteredEvents].reverse().map((event, index) => {
               const isLatest = index === 0;
               return (
                 <li key={event.id}>
@@ -138,9 +210,14 @@ export default function NotificationDropdown() {
                       isLatest ? "bg-orange-50 dark:bg-orange-900/20" : ""
                     }`}
                   >
-                    <span className="font-medium text-gray-800 dark:text-white/90">
-                      {event.title}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-800 dark:text-white/90">
+                        {event.title}
+                      </span>
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${getLevelColor(event.level)}`}>
+                        {event.level}
+                      </span>
+                    </div>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       Event date: {formatDate(event.startDate)}
                       {isLatest && (

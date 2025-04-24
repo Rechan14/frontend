@@ -32,6 +32,8 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [userRole, setUserRole] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -56,6 +58,7 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
   }, []);
 
   useEffect(() => {
+    setLoadingCountries(true);
     fetch("https://restcountries.com/v3.1/all")
       .then((res) => {
         if (!res.ok) {
@@ -73,11 +76,15 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
           autoClose: 3000,
         });
         console.error("Error fetching countries:", error);
+      })
+      .finally(() => {
+        setLoadingCountries(false);
       });
   }, []);
 
   useEffect(() => {
     if (newAccount.country) {
+      setLoadingCities(true);
       fetch("https://countriesnow.space/api/v0.1/countries/cities", {
         method: "POST",
         headers: {
@@ -93,6 +100,9 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
             autoClose: 3000,
           });
           console.error("Error fetching cities:", error);
+        })
+        .finally(() => {
+          setLoadingCities(false);
         });
     }
   }, [newAccount.country]);
@@ -124,31 +134,41 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
       };
       
       errorMessage = `${fieldNames[name]} is required`;
-      toast.error(errorMessage, {
-        position: "bottom-right",
-        autoClose: 3000,
-      });
     } else {
-      if (name === "email" && !/^\S+@\S+\.\S+$/.test(value)) {
-        errorMessage = "Invalid email format";
-        toast.error(errorMessage, {
-          position: "bottom-right",
-          autoClose: 3000,
-        });
-      }
-      if (name === "password" && value.length < 6) {
-        errorMessage = "Password must be at least 6 characters";
-        toast.error(errorMessage, {
-          position: "bottom-right",
-          autoClose: 3000,
-        });
-      }
-      if (name === "confirmPassword" && value !== newAccount.password) {
-        errorMessage = "Passwords do not match";
-        toast.error(errorMessage, {
-          position: "bottom-right",
-          autoClose: 3000,
-        });
+      switch (name) {
+        case "email":
+          if (!/^\S+@\S+\.\S+$/.test(value)) {
+            errorMessage = "Invalid email format";
+          }
+          break;
+        case "password":
+          if (value.length < 6) {
+            errorMessage = "Password must be at least 6 characters";
+          } else if (!/[A-Z]/.test(value)) {
+            errorMessage = "Password must contain at least one uppercase letter";
+          } else if (!/[a-z]/.test(value)) {
+            errorMessage = "Password must contain at least one lowercase letter";
+          } else if (!/[0-9]/.test(value)) {
+            errorMessage = "Password must contain at least one number";
+          } else if (!/[!@#$%^&*]/.test(value)) {
+            errorMessage = "Password must contain at least one special character (!@#$%^&*)";
+          }
+          break;
+        case "phone":
+          if (!/^\+?[\d\s-]{10,}$/.test(value)) {
+            errorMessage = "Invalid phone number format";
+          }
+          break;
+        case "postalCode":
+          if (!/^[A-Z0-9\s-]{3,10}$/.test(value)) {
+            errorMessage = "Invalid postal code format";
+          }
+          break;
+        case "confirmPassword":
+          if (value !== newAccount.password) {
+            errorMessage = "Passwords do not match";
+          }
+          break;
       }
     }
 
@@ -192,20 +212,12 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
         };
         
         newErrors[field] = `${fieldNames[field]} is required`;
-        toast.error(`${fieldNames[field]} is required`, {
-          position: "bottom-right",
-          autoClose: 3000,
-        });
         isValid = false;
       }
     });
 
     if (newAccount.password !== newAccount.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
-      toast.error("Passwords do not match", {
-        position: "bottom-right",
-        autoClose: 3000,
-      });
       isValid = false;
     }
 
@@ -214,8 +226,19 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
   };
 
   const handleAddAccount = async () => {
-    if (!isFormValid()) return;
-  
+    if (!isFormValid()) {
+      // Show all errors at once when form is submitted
+      Object.entries(errors).forEach(([field, message]) => {
+        if (message) {
+          toast.error(message, {
+            position: "bottom-right",
+            autoClose: 3000,
+          });
+        }
+      });
+      return;
+    }
+
     const token = localStorage.getItem("token");
     if (!token) {
       toast.error("No authentication token found!", {
@@ -224,7 +247,7 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
       });
       return;
     }
-  
+
     if (!userRole || userRole !== "Admin") {
       toast.error("Unauthorized: Only admins can create new accounts.", {
         position: "bottom-right",
@@ -232,52 +255,49 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
       });
       return;
     }
-  
+
     try {
       setLoading(true);
       const headers = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
       };
-  
+
       const response = await fetch("http://localhost:4000/accounts", {
         method: "POST",
         headers,
         body: JSON.stringify(newAccount),
       });
-  
+
       if (!response.ok) {
         const errorMessage = await response.text();
         
-        // Check if the error is about duplicate email
         if (response.status === 400 && errorMessage.includes("email")) {
           throw new Error("This email is already registered.");
         }
-  
-        // Handle other errors
+
         throw new Error(`Failed to add account: ${response.status} - ${errorMessage}`);
       }
-  
+
       await response.json();
       toast.success("Account added successfully!", {
         position: "bottom-right",
         autoClose: 2000,
       });
-  
+
       setTimeout(() => {
         window.location.href = "/workforce";
       }, 1000);
     } catch (error: any) {
-      // Check for specific duplicate email error
       const message = error.message === "This email is already registered."
         ? "This email is already registered. Please use a different email."
         : error.message || "Failed to add account. Please try again.";
-  
+
       toast.error(message, {
         position: "bottom-right",
         autoClose: 3000,
       });
-  
+
       console.error("Error adding account:", message);
     } finally {
       setLoading(false);
@@ -301,25 +321,44 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
             { label: "Email", name: "email", type: "email" },
             { label: "Password", name: "password", type: "password" },
             { label: "Confirm Password", name: "confirmPassword", type: "password" },
-            { label: "Country", name: "country", type: "select", options: countries },
-            { label: "City", name: "city", type: "select", options: cities },
-            { label: "Postal Code", name: "postalCode", type: "text" }].map(({ label, name, type, options }) => (
+            { label: "Country", name: "country", type: "select", options: countries, loading: loadingCountries },
+            { label: "City", name: "city", type: "select", options: cities, loading: loadingCities },
+            { label: "Postal Code", name: "postalCode", type: "text" }].map(({ label, name, type, options, loading: isLoading }) => (
             <div key={name} className="flex flex-col">
               <label className="font-semibold text-gray-300">{label}</label>
               {type === "select" ? (
-                <select
-                  name={name}
-                  value={newAccount[name as keyof typeof newAccount]}
-                  onChange={handleInputChange}
-                  className="border p-3 w-full bg-gray-700 text-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select {label}</option>
-                  {options?.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name={name}
+                    value={newAccount[name as keyof typeof newAccount]}
+                    onChange={handleInputChange}
+                    className={`border p-3 w-full bg-gray-700 text-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 ${
+                      isLoading ? 'opacity-50' : 'opacity-100'
+                    }`}
+                    disabled={isLoading}
+                  >
+                    <option value="">Select {label}</option>
+                    {options?.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  {isLoading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 animate-pulse">
+                      <div className="relative">
+                        <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <div className="absolute inset-0 bg-blue-500/10 rounded-full animate-ping"></div>
+                      </div>
+                    </div>
+                  )}
+                  {isLoading && (
+                    <div className="absolute inset-0 bg-gray-700/50 rounded-md animate-pulse"></div>
+                  )}
+                </div>
               ) : (
                 <input
                   type={type}
@@ -337,9 +376,21 @@ const AddAccount: React.FC<AddAccountProps> = ({ onAddAccount }) => {
         <button
           onClick={handleAddAccount}
           disabled={loading}
-          className="mt-8 py-3 px-6 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className={`mt-8 py-3 px-6 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all duration-300 ${
+            loading ? 'opacity-75 cursor-not-allowed' : ''
+          }`}
         >
-          {loading ? "Adding Account..." : "Add Account"}
+          {loading ? (
+            <div className="flex items-center justify-center space-x-2">
+              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Adding Account...</span>
+            </div>
+          ) : (
+            "Add Account"
+          )}
         </button>
         <ToastContainer />
       </div>
