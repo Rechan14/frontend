@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { API_ENDPOINTS } from "../../config/api";
 
 interface Event {
   id: number;
@@ -9,6 +10,7 @@ interface Event {
   startDate: string;
   endDate: string;
   level: 'high' | 'medium' | 'low';
+  isRead?: boolean;
 }
 
 export default function NotificationDropdown() {
@@ -17,11 +19,12 @@ export default function NotificationDropdown() {
   const [events, setEvents] = useState<Event[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filterLevel, setFilterLevel] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const wsRef = useRef<WebSocket | null>(null);
 
   const fetchEvents = async () => {
     try {
       const token = localStorage.getItem("authToken");
-      const res = await axios.get("http://localhost:4000/calendars", {
+      const res = await axios.get(API_ENDPOINTS.CALENDARS, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -29,20 +32,25 @@ export default function NotificationDropdown() {
 
       const allEvents: Event[] = res.data.map((event: any) => ({
         ...event,
-        level: event.eventColor // Map eventColor to level
+        level: event.eventColor,
+        isRead: false
       }));
-      setEvents(allEvents);
 
+      // Get the last seen event ID from localStorage
       const lastSeenEventId = parseInt(localStorage.getItem("lastSeenEventId") || "0", 10);
-      const newEvents = allEvents.filter((event) => event.id > lastSeenEventId);
+      
+      // Mark events as read if they were seen before
+      const updatedEvents = allEvents.map(event => ({
+        ...event,
+        isRead: event.id <= lastSeenEventId
+      }));
 
-      if (newEvents.length > 0) {
-        setUnreadCount(newEvents.length);
-        setNotifying(true);
-      } else {
-        setUnreadCount(0);
-        setNotifying(false);
-      }
+      setEvents(updatedEvents);
+
+      // Calculate unread count
+      const newUnreadCount = updatedEvents.filter(event => !event.isRead).length;
+      setUnreadCount(newUnreadCount);
+      setNotifying(newUnreadCount > 0);
     } catch (error) {
       console.error("Failed to fetch events", error);
     }
@@ -52,24 +60,52 @@ export default function NotificationDropdown() {
     // Initial fetch
     fetchEvents();
 
+    // Set up WebSocket connection
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    const wsUrl = `${API_ENDPOINTS.WS}?token=${token}`;
+    console.log('Connecting to WebSocket:', wsUrl);
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'reminder') {
+        // Update unread count and fetch new events
+        setUnreadCount(prev => prev + 1);
+        setNotifying(true);
+        fetchEvents();
+      }
+    };
+
     // Set up polling every 30 seconds
     const intervalId = setInterval(fetchEvents, 30000);
 
-    // Cleanup interval on component unmount
-    return () => clearInterval(intervalId);
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      clearInterval(intervalId);
+    };
   }, []);
 
-  const toggleDropdown = () => setIsOpen(!isOpen);
-
-  const closeDropdown = () => setIsOpen(false);
-
   const handleClick = () => {
-    toggleDropdown();
+    setIsOpen(!isOpen);
     setNotifying(false);
-    setUnreadCount(0);
-
+    
     if (events.length > 0) {
-      const latestEventId = events[events.length - 1].id;
+      // Mark all events as read
+      const updatedEvents = events.map(event => ({
+        ...event,
+        isRead: true
+      }));
+      setEvents(updatedEvents);
+      setUnreadCount(0);
+
+      // Store the latest event ID
+      const latestEventId = Math.max(...events.map(event => event.id));
       localStorage.setItem("lastSeenEventId", latestEventId.toString());
     }
   };
@@ -93,7 +129,7 @@ export default function NotificationDropdown() {
   };
 
   const filteredEvents = events.filter(event => 
-    filterLevel === 'all' || event.level === filterLevel
+    (filterLevel === 'all' || event.level === filterLevel)
   );
 
   return (
@@ -125,7 +161,7 @@ export default function NotificationDropdown() {
 
       <Dropdown
         isOpen={isOpen}
-        onClose={closeDropdown}
+        onClose={() => setIsOpen(false)}
         className="absolute -right-[240px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0"
       >
         <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
@@ -133,7 +169,7 @@ export default function NotificationDropdown() {
             Notifications
           </h5>
           <button
-            onClick={toggleDropdown}
+            onClick={() => setIsOpen(false)}
             className="text-gray-500 transition dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           >
             <svg
@@ -201,11 +237,11 @@ export default function NotificationDropdown() {
             <p className="text-center text-gray-500 dark:text-gray-400">No Notification</p>
           ) : (
             [...filteredEvents].reverse().map((event, index) => {
-              const isLatest = index === 0;
+              const isLatest = index === 0 && !event.isRead;
               return (
                 <li key={event.id}>
                   <DropdownItem
-                    onItemClick={closeDropdown}
+                    onItemClick={() => setIsOpen(false)}
                     className={`flex flex-col items-start gap-1 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5 ${
                       isLatest ? "bg-orange-50 dark:bg-orange-900/20" : ""
                     }`}

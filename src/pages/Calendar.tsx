@@ -7,6 +7,7 @@ import { EventInput, DateSelectArg, EventClickArg, EventContentArg  } from "@ful
 import { Modal } from "../components/ui/modal";
 import { useModal } from "../hooks/useModal";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
+import { API_ENDPOINTS } from "../config/api";
 
 interface CalendarEvent extends EventInput {
   extendedProps: {
@@ -50,6 +51,8 @@ const Calendar: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const calendarRef = useRef<FullCalendar>(null);
   const { isOpen, openModal, closeModal } = useModal();
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
 
   const categories = [
     "Meeting",
@@ -84,7 +87,7 @@ const Calendar: React.FC = () => {
       }
 
       try {
-        const response = await fetch("http://localhost:4000/calendars", {
+        const response = await fetch(API_ENDPOINTS.CALENDARS, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -120,6 +123,95 @@ const Calendar: React.FC = () => {
     };
 
     fetchEvents();
+  }, []);
+
+  useEffect(() => {
+    // Initialize WebSocket connection
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No authentication token found");
+      return;
+    }
+
+    const connectWebSocket = () => {
+      const wsUrl = `${API_ENDPOINTS.WS}?token=${token}`;
+      console.log('Connecting to WebSocket:', wsUrl);
+
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log("WebSocket connected successfully");
+          // Reset reconnection attempts
+          reconnectAttemptsRef.current = 0;
+        };
+
+        ws.onmessage = (event) => {
+          console.log("WebSocket message received:", event.data);
+          const data = JSON.parse(event.data);
+          if (data.type === 'reminder') {
+            // Request notification permission if not already granted
+            if (Notification.permission !== "granted") {
+              Notification.requestPermission();
+            }
+
+            // Show notification
+            if (Notification.permission === "granted") {
+              new Notification(`Upcoming Event: ${data.data.title}`, {
+                body: data.data.description || "No description provided",
+                icon: "/calendar-icon.png"
+              });
+            }
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          // Log additional error details if available
+          if (error instanceof Error) {
+            console.error("Error details:", error.message, error.stack);
+          }
+        };
+
+        ws.onclose = (event) => {
+          console.log("WebSocket disconnected:", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean
+          });
+          
+          // Only attempt to reconnect if the connection was not closed normally
+          if (event.code !== 1000) {
+            const maxAttempts = 5;
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+            
+            if (reconnectAttemptsRef.current < maxAttempts) {
+              console.log(`Attempting to reconnect in ${delay}ms... (Attempt ${reconnectAttemptsRef.current + 1}/${maxAttempts})`);
+              setTimeout(() => {
+                reconnectAttemptsRef.current += 1;
+                connectWebSocket();
+              }, delay);
+            } else {
+              console.error("Max reconnection attempts reached. Please check if the server is running and try refreshing the page.");
+              // Optionally show a user-friendly error message
+              setError("Unable to connect to the server. Please try refreshing the page.");
+            }
+          }
+        };
+      } catch (error) {
+        console.error("Error creating WebSocket connection:", error);
+        setError("Failed to establish WebSocket connection. Please try again later.");
+      }
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close(1000, "Component unmounting");
+      }
+    };
   }, []);
 
   const handleDateSelect = (selectInfo: DateSelectArg) => {
@@ -170,10 +262,11 @@ const Calendar: React.FC = () => {
       eventColor: eventLevel,
       description: eventDescription,
       category: eventCategory,
-      reminder: {
-        enabled: reminderEnabled,
-        minutesBefore: reminderMinutes
-      }
+      reminder: reminderEnabled ? {
+        enabled: true,
+        minutesBefore: reminderMinutes,
+        notificationTime: new Date(startDate.getTime() - reminderMinutes * 60000).toISOString()
+      } : null
     };
 
     setIsSubmitting(true);
@@ -183,7 +276,7 @@ const Calendar: React.FC = () => {
       let response;
 
       if (selectedEvent) {
-        response = await fetch(`http://localhost:4000/calendars/${selectedEvent.id}`, {
+        response = await fetch(`${API_ENDPOINTS.CALENDARS}/${selectedEvent.id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -192,7 +285,7 @@ const Calendar: React.FC = () => {
           body: JSON.stringify(eventData),
         });
       } else {
-        response = await fetch("http://localhost:4000/calendars", {
+        response = await fetch(API_ENDPOINTS.CALENDARS, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -207,9 +300,25 @@ const Calendar: React.FC = () => {
         throw new Error(errorData.message || "Failed to save event");
       }
 
+      // Request notification permission if not already granted
+      if (reminderEnabled && Notification.permission !== "granted") {
+        await Notification.requestPermission();
+      }
+
       // Schedule reminder if enabled
-      if (reminderEnabled) {
-        scheduleReminder(eventData);
+      if (reminderEnabled && Notification.permission === "granted") {
+        const reminderTime = new Date(startDate.getTime() - reminderMinutes * 60000);
+        const timeUntilReminder = reminderTime.getTime() - Date.now();
+        
+        if (timeUntilReminder > 0) {
+          setTimeout(() => {
+            new Notification(`Upcoming Event: ${eventTitle}`, {
+              body: eventDescription || "No description provided",
+              icon: "/calendar-icon.png",
+              tag: `event-reminder-${selectedEvent?.id || Date.now()}`
+            });
+          }, timeUntilReminder);
+        }
       }
 
       closeModal();
@@ -219,22 +328,6 @@ const Calendar: React.FC = () => {
       setError(error instanceof Error ? error.message : "An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const scheduleReminder = (eventData: any) => {
-    const eventTime = new Date(eventData.startDate);
-    const reminderTime = new Date(eventTime.getTime() - eventData.reminder.minutesBefore * 60000);
-    
-    if (reminderTime > new Date()) {
-      setTimeout(() => {
-        if (Notification.permission === "granted") {
-          new Notification(`Upcoming Event: ${eventData.title}`, {
-            body: eventData.description || "No description provided",
-            icon: "/calendar-icon.png"
-          });
-        }
-      }, reminderTime.getTime() - Date.now());
     }
   };
 

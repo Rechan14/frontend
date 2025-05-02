@@ -32,6 +32,7 @@ interface ActionLog {
   timeIn: string;
   timeOut: string;
   status: string;
+  createdAt: string;
 }
 
 export default function RegularShifts() {
@@ -100,6 +101,7 @@ export default function RegularShifts() {
         const user = JSON.parse(storedUser);
         const isAdmin = user.role === "admin";
 
+        // Fetch attendance records
         const response = await fetch("http://localhost:4000/attendances");
         if (!response.ok) throw new Error("Failed to fetch attendance records");
 
@@ -110,14 +112,8 @@ export default function RegularShifts() {
           ? data // Admin can see all shifts
           : data.filter((shift) => shift.userId === user.id); // Regular users see only their own shifts
 
-        console.log("Filtered shifts with totalHours:", filteredShifts.map(shift => ({
-          id: shift.id,
-          timeIn: shift.timeIn,
-          timeOut: shift.timeOut,
-          totalHours: shift.totalHours,
-          totalHoursType: typeof shift.totalHours,
-          rawTotalHours: shift.totalHours
-        })));
+        // Log the filtered shifts before any modifications
+        console.log("Filtered shifts before action logs:", filteredShifts);
 
         // Fetch action logs for status update
         const actionLogsResponse = await fetch("http://localhost:4000/action-logs");
@@ -125,12 +121,24 @@ export default function RegularShifts() {
 
         // Update status based on action logs
         const updatedShifts = filteredShifts.map((shift) => {
-          const actionLog = actionLogsData.find((log) => log.shiftId === shift.id);
-          if (actionLog && actionLog.status === "pending") {
-            return { ...shift, status: "pending" };
+          // Find all action logs for this shift
+          const shiftActionLogs = actionLogsData.filter(log => log.shiftId === shift.id);
+          
+          if (shiftActionLogs.length > 0) {
+            // Sort by createdAt to get the most recent
+            const mostRecentLog = shiftActionLogs.sort((a, b) => 
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            )[0];
+            
+            // Update the shift status with the most recent action log status
+            return { ...shift, status: mostRecentLog.status };
           }
+          
           return { ...shift, status: shift.status || "" };
         });
+
+        // Log the shifts after status updates
+        console.log("Shifts after status updates:", updatedShifts);
 
         // Sort the shifts by timeIn
         const sortedShifts = updatedShifts.sort((a, b) => {
@@ -255,7 +263,8 @@ export default function RegularShifts() {
     console.log('Difference in milliseconds:', diffInMs);
     console.log('Total Hours:', diffInHours);
     
-    return diffInHours;
+    // Ensure we don't return negative hours
+    return Math.max(0, diffInHours);
   };
 
   const handleUpdateShift = async () => {
@@ -371,7 +380,7 @@ export default function RegularShifts() {
             <tbody className="divide-y divide-gray-200 text-gray-700 dark:text-gray-300">
               {currentShifts.length > 0 ? (
                 currentShifts.map((shift) => {
-                  // Remove localStorage check and only use shift status
+                  // Get the status directly from the shift object
                   const displayStatus = shift.status || "";
                   return (
                     <tr key={shift.id} className="hover:bg-gray-100 dark:hover:bg-gray-900">
@@ -388,7 +397,6 @@ export default function RegularShifts() {
                           />
                         )}
                       </td>
-
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm relative group">
                         {shift.timeOut ? formatTime(shift.timeOut) : "-"}
                         {shift.timeOutImageId && (
@@ -404,29 +412,35 @@ export default function RegularShifts() {
                         {(() => {
                           if (!shift.timeIn || !shift.timeOut) return "-";
                           
-                          // Calculate total hours from timeIn and timeOut
-                          const timeInDate = new Date(shift.timeIn);
-                          const timeOutDate = new Date(shift.timeOut);
-                          
-                          // If timeOut is before timeIn, it means it's the next day
-                          if (timeOutDate < timeInDate) {
-                            timeOutDate.setDate(timeOutDate.getDate() + 1);
-                          }
-                          
-                          const diffInMs = timeOutDate.getTime() - timeInDate.getTime();
-                          const totalHours = diffInMs / (1000 * 60 * 60);
-                          
-                          console.log('Calculated total hours:', {
+                          console.log('Shift data:', {
                             timeIn: shift.timeIn,
                             timeOut: shift.timeOut,
-                            totalHours: totalHours
+                            totalHours: shift.totalHours
                           });
                           
-                          return totalHours.toFixed(2);
+                          // If totalHours is null or 0, calculate it
+                          if (shift.totalHours === null || shift.totalHours === 0) {
+                            const timeInDate = new Date(shift.timeIn);
+                            const timeOutDate = new Date(shift.timeOut);
+                            
+                            // If timeOut is before timeIn, it means it's the next day
+                            if (timeOutDate < timeInDate) {
+                              timeOutDate.setDate(timeOutDate.getDate() + 1);
+                            }
+                            
+                            const diffInMs = timeOutDate.getTime() - timeInDate.getTime();
+                            const calculatedHours = diffInMs / (1000 * 60 * 60);
+                            return calculatedHours.toFixed(2);
+                          }
+                          
+                          // Otherwise use the backend value
+                          return shift.totalHours?.toFixed(2) || "0.00";
                         })()}
                       </td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">{getUserEmploymentType(shift.userId)}</td>
-                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold capitalize">{displayStatus}</td>
+                      <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm font-semibold capitalize">
+                        {displayStatus}
+                      </td>
                       <td className="border border-gray-100 dark:border-gray-800 p-3 text-sm">
                         <button
                           className="text-blue-600 hover:underline"
@@ -436,7 +450,7 @@ export default function RegularShifts() {
                           }}
                         >
                           Edit
-                      </button>
+                        </button>
                       </td>
                     </tr>
                   );
